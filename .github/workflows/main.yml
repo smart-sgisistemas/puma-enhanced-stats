@@ -9,18 +9,23 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         ruby: ["3.0", "3.2", "3.3", "3.4"]
         puma: ["8.0.2"]
-    name: Ruby ${{ matrix.ruby }} / Puma ${{ matrix.puma }}
+        rails: ["7.0.10", "7.1.6", "7.2.2"]
+        exclude:
+          - ruby: "3.0"
+            rails: "7.2.2"
+    name: Ruby ${{ matrix.ruby }} / Rails ${{ matrix.rails }} / Puma ${{ matrix.puma }}
     steps:
       - uses: actions/checkout@v4
       - name: Run specs in Docker
         env:
           PUMA_VERSION: ${{ matrix.puma }}
+          RAILS_VERSION: ${{ matrix.rails }}
         run: |
           docker build \
             --build-arg RUBY_VERSION=${{ matrix.ruby }} \
@@ -28,5 +33,6 @@ jobs:
             .
           docker run --rm \
             -e PUMA_VERSION="${PUMA_VERSION}" \
+            -e RAILS_VERSION="${RAILS_VERSION}" \
             puma-enhanced-stats:ci \
             bundle exec rake

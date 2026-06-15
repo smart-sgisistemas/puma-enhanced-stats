@@ -14,7 +14,7 @@ module Puma
       class Railtie < Rails::Railtie
         # Inserts {Middleware} after the configured session store middleware.
         initializer "puma_enhanced_stats.middleware" do |app|
-          session_klass = ActionDispatch::Session.resolve_store app.config.session_store
+          session_klass = app.config.session_store
           app.middleware.insert_after session_klass, Middleware
         end
       end

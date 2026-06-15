@@ -162,7 +162,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.1.2",
+    "gem_version": "0.1.3",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",

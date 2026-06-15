@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.3 — 2026-06-15
+
+### Fixed
+
+- Rails 7.0 boot failure: use `config.session_store` (already resolved by Rails) instead of `ActionDispatch::Session.resolve_store` (added in Rails 7.1)
+
+### Changed
+
+- CI matrix tests Rails 7.0.10, 7.1.6, and 7.2.2 (via `RAILS_VERSION`) across Ruby 3.0–3.4
+
 ## 0.1.2 — 2026-06-15
 
 ### Fixed
