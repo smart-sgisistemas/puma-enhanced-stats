@@ -13,8 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ["3.0", "3.2", "3.3"]
-        puma: ["6.4.3", "7.0.4", "8.0.2"]
+        ruby: ["3.0", "3.2", "3.3", "3.4"]
+        puma: ["8.0.2"]
     name: Ruby ${{ matrix.ruby }} / Puma ${{ matrix.puma }}
     steps:
       - uses: actions/checkout@v4

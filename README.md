@@ -19,7 +19,7 @@ The gem activates when loaded via Bundler. No `puma.rb` entry is required for de
 
 - Ruby >= 3.0
 - Rails >= 7.0, < 8
-- Puma >= 6.0
+- Puma >= 8.0
 
 ## Installation
 
@@ -162,7 +162,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.1.0",
+    "gem_version": "0.1.1",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",

@@ -4,7 +4,7 @@ module Puma
   module Enhanced
     module Stats
       # @return [String] gem version exposed in enhanced-stats JSON +meta+
-      VERSION = "0.1.0"
+      VERSION = "0.1.1"
     end
   end
 end

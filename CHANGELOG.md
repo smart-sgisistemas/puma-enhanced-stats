@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — 2026-06-13
+
+### Changed
+
+- Minimum supported Puma version raised from 6.0 to 8.0
+- CI matrix includes Ruby 3.4
+
 ## 0.1.0 — 2026-06-13
 
 ### Added

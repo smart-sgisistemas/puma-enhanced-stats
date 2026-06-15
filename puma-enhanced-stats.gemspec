@@ -29,7 +29,7 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "puma", ">= 6.0", "< 9"
+  spec.add_dependency "puma", ">= 8.0", "< 9"
   spec.add_dependency "rails", ">= 7.0", "< 8"
 
   spec.add_development_dependency "json_schemer", "~> 2.0"
