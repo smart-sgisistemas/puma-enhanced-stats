@@ -2,9 +2,12 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in puma-enhanced-stats.gemspec
 gemspec
 
-gem "rake", "~> 13.0"
+if (puma_version = ENV["PUMA_VERSION"]) && !puma_version.empty?
+  gem "puma", "= #{puma_version}"
+end
 
+gem "rake", "~> 13.0"
 gem "rspec", "~> 3.0"
+gem "json_schemer", "~> 2.0"

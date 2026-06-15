@@ -8,17 +8,16 @@ Gem::Specification.new do |spec|
   spec.authors = ["Ederson José Fuzinato"]
   spec.email = ["ederson.fuzinato@sgisistemas.com.br"]
 
-  spec.summary = "Enhanced statistics for Puma web server."
-  spec.description = "Gem to collect, enrich, and expose extended statistics from Puma's control_app."
+  spec.summary = "Enhanced statistics for Puma on Rails."
+  spec.description = "Collect in-flight requests and worker process metrics from Rails apps via Puma control app."
   spec.homepage = "https://github.com/smart-sgisistemas/puma-enhanced-stats"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
-
-  spec.metadata["homepage_uri"] = "https://github.com/smart-sgisistemas/puma-enhanced-stats"
-  spec.metadata["source_code_uri"] = "https://github.com/smart-sgisistemas/puma-enhanced-stats"
-  spec.metadata["changelog_uri"] = "https://github.com/smart-sgisistemas/puma-enhanced-stats/blob/main/CHANGELOG.md"
+  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
@@ -30,6 +29,12 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "puma", ">= 6.0", "< 9"
+  spec.add_dependency "rails", ">= 7.0", "< 8"
+
+  spec.add_development_dependency "json_schemer", "~> 2.0"
   spec.add_development_dependency "rake", "~> 13.0"
   spec.add_development_dependency "rspec", "~> 3.0"
+  spec.add_development_dependency "simplecov", "~> 0.22"
+  spec.add_development_dependency "yard", "~> 0.9"
 end

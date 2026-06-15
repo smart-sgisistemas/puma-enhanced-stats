@@ -1,0 +1,27 @@
+# Git / CI / editor
+.git/
+.github/
+.cursor/
+.idea/
+.vscode/
+
+# Bundler / Rubygems
+.bundle/
+*.gem
+pkg/
+
+# Docs / coverage / temp
+.yardoc/
+_yardoc/
+coverage/
+doc/
+tmp/
+spec/reports/
+log/
+
+# Local env
+.env
+.env.*
+
+# RSpec state
+.rspec_status

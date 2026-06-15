@@ -1,19 +1,32 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [Unreleased]
-
-### Changed
-
-- Renamed gem and repository from `puma-stats-enhanced` to `puma-enhanced-stats`.
-- Renamed namespace from `Puma::Stats::Enhanced` to `Puma::Enhanced::Stats`.
-
-## [0.1.0] - 2026-06-12
+## 0.1.0 — 2026-06-13
 
 ### Added
 
-- Initial gem scaffold with RSpec and GitHub Actions CI.
+- Zero-config activation via Gemfile and Rails Railtie middleware (inserted after the session store)
+- Optional `enhanced_stats` DSL in `config/puma.rb`:
+  - `request` and `session` field extractors
+  - `request_limit`, `limit_policy`, `sync_interval`, `max_field_length`
+- Built-in request fields: `remote_ip`, `method`, `path_info`
+- `GET /enhanced-stats` on the Puma control app
+- `pumactl enhanced-stats` command
+- JSON contract v1 ([schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json)) with:
+  - `meta`, `summary`, and per-worker `puma`, `process`, and `requests` sections
+  - In-flight request items with `elapsed_ms`, optional `session` fields, and registry metadata
+  - Cluster `synced_at` from worker ping (`null` until first report); `summary.workers_reporting` counts workers with enhanced stats
+- In-flight request registry with policies:
+  - `keep_longest` (default) — evicts newest entry when full
+  - `reject_new` — drops new registrations when full
+- Field value truncation via `max_field_length` with `truncated` flag in snapshots
+- Registry builds entries outside the mutex; duplicate request ids replace prior entries
+- Cluster sync via `_enhanced_stats` injected into worker ping payloads (`WorkerWrite` → `WorkerHandle`)
+- `sync_interval` overrides Puma `worker_check_interval` in cluster mode
+- On-demand process metrics via `ProcessMetrics.read` (`ps` on Linux/macOS)
+- `before_worker_boot` hook clears the in-flight registry when a cluster worker boots
+
+### Requirements
+
+- Ruby >= 3.0
+- Rails >= 7.0, < 8
+- Puma >= 6.0

@@ -2,7 +2,115 @@ module Puma
   module Enhanced
     module Stats
       VERSION: String
-      # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+      class Error < StandardError
+      end
+
+      class Configuration
+        LIMIT_POLICIES: Array[Symbol]
+
+        attr_reader request_limit: Integer
+        attr_reader limit_policy: Symbol
+        attr_reader sync_interval: Integer
+        attr_reader max_field_length: Integer
+        attr_reader fields: { request: Hash[String, Field], session: Hash[String, Field] }
+
+        def self.default: () -> Configuration
+
+        def initialize: () -> void
+        def fields_for: (Symbol namespace) -> Array[Field]
+        def register_fields: (Symbol | String namespace, *Symbol | String name) ?{ (Hash[untyped, untyped] source) -> untyped } -> void
+        def request_limit=: (Integer | String value) -> Integer
+        def limit_policy=: (Symbol | String value) -> Symbol
+        def sync_interval=: (Integer | String value) -> Integer
+        def max_field_length=: (Integer | String value) -> Integer
+      end
+
+      class Field
+        attr_reader name: String
+        attr_reader block: Proc?
+
+        def initialize: (name: Symbol | String, ?block: Proc?) -> void
+        def extract: (Hash[untyped, untyped] source) -> untyped
+      end
+
+      class CurrentRequestsRegistry
+        include Singleton
+
+        attr_accessor config: Configuration
+
+        def register: (Hash[untyped, untyped] env) -> String?
+        def unregister: (String id) -> void
+        def reset!: () -> void
+        def snapshot: () -> Hash[String, untyped]
+      end
+
+      class Middleware
+        def initialize: (#call app, ?registry: CurrentRequestsRegistry) -> void
+        def call: (Hash[untyped, untyped] env) -> Array[untyped]
+      end
+
+      class BodyProxy
+        def initialize: (untyped body) { () -> void } -> void
+        def each: (?Proc) -> untyped
+        def close: () -> void
+      end
+
+      class ProcessMetrics
+        EMPTY: Hash[String, Integer | Float | nil]
+
+        def self.read: () -> Hash[String, Integer | Float | nil]
+      end
+
+      class Snapshot
+        def self.build: (untyped launcher) -> Hash[String, untyped]
+      end
+
+      class WorkerWrite
+        def initialize: (IO io) -> void
+        def <<: (String message) -> void
+        def close: () -> void
+      end
+
+      module Normalizer
+        def self.fetch: (Hash[untyped, untyped]? hash, Symbol | String key) -> untyped
+        def self.item_with_elapsed: (Hash[String, untyped] item, Time now) -> Hash[String, untyped]
+        def self.normalize_process: (Hash[untyped, untyped]? raw) -> Hash[String, Integer | Float | nil]
+        def self.requests_section: (items: Array[Hash[String, untyped]], config: Configuration, truncated: bool, dropped_count: Integer) -> Hash[String, untyped]
+        def self.pick_puma_stats: (Hash[untyped, untyped]? last_status) -> Hash[String, Integer]
+        def self.summary: (Array[Hash[String, untyped]] workers) -> Hash[String, Integer]
+      end
+
+      module Launcher
+        def workers: () -> Array[Puma::Cluster::WorkerHandle]?
+        def run: () -> untyped
+      end
+      module Status
+        def call: (Hash[untyped, untyped] env) -> Array[untyped]
+      end
+
+      module WorkerHandle
+      end
+
+      module ClusterWorker
+      end
+
+      module DSL
+        def enhanced_stats: () { () -> void } -> Configuration
+
+        class Builder
+          def initialize: (Configuration configuration) -> void
+          def request_limit: (Integer | String value) -> Integer
+          def limit_policy: (Symbol | String value) -> Symbol
+          def sync_interval: (Integer | String value) -> Integer
+          def max_field_length: (Integer | String value) -> Integer
+          def request: (*Symbol | String name) ?{ (Hash[untyped, untyped] env) -> untyped } -> void
+          def session: (*Symbol | String name) ?{ (Hash[untyped, untyped] rack_session) -> untyped } -> void
+        end
+      end
+
+      class Railtie < ::Rails::Railtie
+      end
     end
   end
 end

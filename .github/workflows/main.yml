@@ -4,24 +4,29 @@ on:
   push:
     branches:
       - main
-
   pull_request:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }}
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
-        ruby:
-          - '3.0.7'
-
+        ruby: ["3.0", "3.2", "3.3"]
+        puma: ["6.4.3", "7.0.4", "8.0.2"]
+    name: Ruby ${{ matrix.ruby }} / Puma ${{ matrix.puma }}
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
-      - name: Run the default task
-        run: bundle exec rake
+      - name: Run specs in Docker
+        env:
+          PUMA_VERSION: ${{ matrix.puma }}
+        run: |
+          docker build \
+            --build-arg RUBY_VERSION=${{ matrix.ruby }} \
+            -t puma-enhanced-stats:ci \
+            .
+          docker run --rm \
+            -e PUMA_VERSION="${PUMA_VERSION}" \
+            puma-enhanced-stats:ci \
+            bundle exec rake

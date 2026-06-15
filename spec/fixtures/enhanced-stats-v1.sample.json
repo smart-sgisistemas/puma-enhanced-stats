@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "collected_at": "2026-06-12T10:00:00Z",
+    "gem_version": "0.1.0",
+    "puma_version": "6.4.2",
+    "ruby_version": "3.2.2",
+    "mode": "cluster",
+    "sync_interval_seconds": 5
+  },
+  "summary": {
+    "workers_total": 1,
+    "workers_reporting": 1,
+    "requests_in_flight": 1,
+    "requests_dropped_total": 0
+  },
+  "workers": [{
+    "index": 0,
+    "pid": 12345,
+    "synced_at": "2026-06-12T10:00:05Z",
+    "puma": {
+      "backlog": 0,
+      "running": 1,
+      "pool_capacity": 5,
+      "max_threads": 5,
+      "requests_count": 10
+    },
+    "process": {
+      "rss_bytes": 256000000,
+      "cpu_percent": 12.5
+    },
+    "requests": {
+      "meta": {
+        "count": 1,
+        "request_limit": 100,
+        "limit_policy": "keep_longest",
+        "truncated": false,
+        "dropped_count": 0
+      },
+      "items": [{
+        "id": "abc",
+        "started_at": "2026-06-12T09:59:20Z",
+        "elapsed_ms": 45000,
+        "method": "GET",
+        "path_info": "/reports",
+        "remote_ip": "127.0.0.1",
+        "session": {
+          "user_id": "42"
+        }
+      }]
+    }
+  }]
+}

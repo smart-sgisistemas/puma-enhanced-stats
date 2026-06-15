@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/smart-sgisistemas/puma-enhanced-stats/schema/enhanced-stats-v1.json",
+  "title": "Puma Enhanced Stats v1",
+  "type": "object",
+  "required": ["schema_version", "meta", "summary", "workers"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "meta": {
+      "type": "object",
+      "required": [
+        "collected_at",
+        "gem_version",
+        "puma_version",
+        "ruby_version",
+        "mode",
+        "sync_interval_seconds"
+      ],
+      "properties": {
+        "collected_at": { "type": "string", "format": "date-time" },
+        "gem_version": { "type": "string" },
+        "puma_version": { "type": "string" },
+        "ruby_version": { "type": "string" },
+        "mode": { "type": "string", "enum": ["single", "cluster"] },
+        "sync_interval_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "workers_total",
+        "workers_reporting",
+        "requests_in_flight",
+        "requests_dropped_total"
+      ],
+      "properties": {
+        "workers_total": { "type": "integer", "minimum": 0 },
+        "workers_reporting": { "type": "integer", "minimum": 0 },
+        "requests_in_flight": { "type": "integer", "minimum": 0 },
+        "requests_dropped_total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "workers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/worker" }
+    }
+  },
+  "$defs": {
+    "worker": {
+      "type": "object",
+      "required": ["index", "pid", "synced_at", "puma", "process", "requests"],
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "pid": { "type": "integer" },
+        "synced_at": { "type": ["string", "null"], "format": "date-time" },
+        "puma": {
+          "type": "object",
+          "required": [
+            "backlog",
+            "running",
+            "pool_capacity",
+            "max_threads",
+            "requests_count"
+          ]
+        },
+        "process": {
+          "type": "object",
+          "required": ["rss_bytes", "cpu_percent"],
+          "properties": {
+            "rss_bytes": { "type": ["integer", "null"] },
+            "cpu_percent": { "type": ["number", "null"] }
+          }
+        },
+        "requests": {
+          "type": "object",
+          "required": ["meta", "items"],
+          "properties": {
+            "meta": {
+              "type": "object",
+              "required": [
+                "count",
+                "request_limit",
+                "limit_policy",
+                "truncated",
+                "dropped_count"
+              ],
+              "properties": {
+                "count": { "type": "integer", "minimum": 0 },
+                "request_limit": { "type": "integer", "minimum": 1 },
+                "limit_policy": {
+                  "type": "string",
+                  "enum": ["keep_longest", "reject_new"]
+                },
+                "truncated": { "type": "boolean" },
+                "dropped_count": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/request_item" }
+            }
+          }
+        }
+      }
+    },
+    "request_item": {
+      "type": "object",
+      "required": ["id", "started_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "started_at": { "type": "string", "format": "date-time" },
+        "elapsed_ms": { "type": ["integer", "null"] },
+        "method": { "type": "string" },
+        "path_info": { "type": "string" },
+        "remote_ip": { "type": "string" },
+        "session": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}
