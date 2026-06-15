@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 — 2026-06-15
+
+### Fixed
+
+- CI Docker image: install `procps` so `ProcessMetrics` specs run on Alpine Ruby 3.2+ (BusyBox `ps` lacks `-p`)
+
 ## 0.1.1 — 2026-06-13
 
 ### Changed
