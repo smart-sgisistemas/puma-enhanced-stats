@@ -6,7 +6,7 @@ require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats do
   it "has a version number" do
-    expect(Puma::Enhanced::Stats::VERSION).to eq("0.1.4")
+    expect(Puma::Enhanced::Stats::VERSION).to eq("0.2.0")
   end
 
   it "defines Error" do

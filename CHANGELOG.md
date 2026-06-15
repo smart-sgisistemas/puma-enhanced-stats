@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 — Unreleased
+
+### Added
+
+- `puma-enhanced-stats` CLI (`exe/puma-enhanced-stats`) — full-terminal dashboard with boxed sections, color bars, and WARN/CRIT thresholds
+- Flags: `--watch` (refresh = server `sync_interval`), `--top` (SYSTEM + PROCESSES), `--compact`, `--json`, `--no-color`, `--worker`, `--sort`
+- Aggregated **SUMMARY** (global backlog, threads in use, pool capacity free)
+- Dynamic in-flight request columns with nested overflow for custom `request` / `session` fields
+- Dependencies: `pastel`, `tty-screen`
+
 ## 0.1.4 — 2026-06-16
 
 ### Added
@@ -67,4 +77,4 @@
 
 - Ruby >= 3.0
 - Rails >= 7.0, < 8
-- Puma >= 6.0
+- Puma >= 8.0

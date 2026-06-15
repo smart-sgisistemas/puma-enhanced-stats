@@ -24,6 +24,8 @@ RSpec.describe Puma::Enhanced::Stats::WorkerHandle do
   end
 
   it "tracks worker max keys across pings" do
+    skip "WORKER_MAX_KEYS unavailable before Puma 7" unless Puma::Cluster::WorkerHandle.const_defined?(:WORKER_MAX_KEYS)
+
     handle.ping!('p1234{"backlog_max":2,"reactor_max":1,"running":1,"pool_capacity":5,"max_threads":5,"requests_count":0}')
     handle.ping!('p1234{"backlog_max":8,"reactor_max":3,"running":1,"pool_capacity":5,"max_threads":5,"requests_count":0}')
 

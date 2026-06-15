@@ -13,7 +13,7 @@ RSpec.describe Puma::App::Status do
     )
   end
 
-  let(:app) { described_class.new(launcher, token: token) }
+  let(:app) { Puma::Enhanced::Stats::PumaCompat.status_app described_class, launcher, token: token }
 
   it "handles built-in control commands" do
     env = Rack::MockRequest.env_for("/gc-stats?token=#{token}")

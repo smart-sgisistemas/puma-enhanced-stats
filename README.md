@@ -66,6 +66,28 @@ bundle exec pumactl -S tmp/puma.state enhanced-stats
 
 `pumactl` uses the state file and control socket configured by Puma; authentication follows the same rules as other control commands.
 
+### Terminal dashboard (v0.2.0)
+
+The gem ships a CLI that renders a full-terminal dashboard from the same JSON contract:
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --top -w
+```
+
+| Flag | Description |
+|------|-------------|
+| `-S` / `-C` / `--url` | Control connection (state file, `tcp://`, or `http://`) |
+| `-T` | Auth token |
+| `-w` / `--watch` | Auto-refresh using `sync_interval` from the server (default 5s) |
+| `--top` | Host SYSTEM + PROCESSES blocks (local OS metrics) |
+| `--compact` | Two-column worker grid (max 2 workers, terminal ≥ 120 cols) |
+| `--json` | Raw JSON output |
+| `--no-color` | Plain text (CI-friendly) |
+| `--worker N` | Filter one worker |
+| `--sort FIELD` | Sort workers and PROCESSES by `cpu`, `rss`, `backlog`, or `index` |
+
+Layout order: **HEADER** → **SYSTEM** / **PROCESSES** (with `--top`) → **SUMMARY** (global backlog, threads, pool) → **WORKER** boxes with in-flight requests → **FOOTER** (with `-w`).
+
 ## Usage
 
 ### Zero-config

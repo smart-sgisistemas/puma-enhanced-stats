@@ -20,7 +20,13 @@ Gem::Specification.new do |spec|
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
   spec.files = Dir.chdir(__dir__) do
-    `git ls-files -z`.split("\x0").reject do |f|
+    tracked = `git ls-files -z 2>/dev/null`.split("\x0").reject(&:empty?)
+    files = if tracked.empty?
+              Dir.glob("{lib,exe,schema}/**/*").select { |f| File.file?(f) }
+            else
+              tracked
+            end
+    files.reject do |f|
       (File.expand_path(f) == __FILE__) ||
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github .idea/ appveyor Gemfile])
     end
@@ -29,6 +35,8 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "pastel", "~> 0.8"
+  spec.add_dependency "tty-screen", "~> 0.8"
   spec.add_dependency "puma", ">= 8.0", "< 9"
   spec.add_dependency "rails", ">= 7.0", "< 8"
 

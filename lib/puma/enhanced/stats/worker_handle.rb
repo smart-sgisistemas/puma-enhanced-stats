@@ -60,7 +60,7 @@ module Puma
             }
           end
         rescue JSON::ParserError
-          super
+          nil
         end
 
         private
@@ -72,13 +72,15 @@ module Puma
             stats[key.to_sym] = value.to_i
           end
 
-          self.class::WORKER_MAX_KEYS.each_with_index do |key, idx|
-            next unless hsh[key]
+          if self.class.const_defined? :WORKER_MAX_KEYS
+            self.class::WORKER_MAX_KEYS.each_with_index do |key, idx|
+              next unless hsh[key]
 
-            if hsh[key] < @worker_max[idx]
-              hsh[key] = @worker_max[idx]
-            else
-              @worker_max[idx] = hsh[key]
+              if hsh[key] < @worker_max[idx]
+                hsh[key] = @worker_max[idx]
+              else
+                @worker_max[idx] = hsh[key]
+              end
             end
           end
 

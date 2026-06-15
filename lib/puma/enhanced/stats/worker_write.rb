@@ -47,12 +47,22 @@ module Puma
 
         private
 
-        def ping?(message) = message.start_with?(Puma::Const::PipeRequest::PIPE_PING)
+        def ping? message
+          message.start_with? PumaCompat.pipe_ping_prefix
+        end
 
         def enhance_ping message
-          prefix = message[/\Ap\d+/]
-          stats = message.delete_prefix(prefix).sub(/\s*\}\s*\n?\z/, "")
-          body = JSON.parse("{#{stats}}").merge("_enhanced_stats" => enhanced_stats_payload)
+          json_start = message.index "{"
+          if json_start
+            prefix = message[0...json_start]
+            body = JSON.parse message[json_start..].sub(/\s*\n\z/, "")
+          else
+            prefix = message[/\Ap\d+/] || ""
+            stats = message.delete_prefix(prefix).sub(/\s*\}\s*\n?\z/, "")
+            body = JSON.parse "{#{stats}}"
+          end
+
+          body = body.merge "_enhanced_stats" => enhanced_stats_payload
           "#{prefix}#{JSON.generate(body)}\n"
         rescue StandardError
           message

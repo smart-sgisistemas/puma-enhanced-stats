@@ -28,7 +28,7 @@ module Puma
             config.options[:worker_check_interval] = enhanced_config.sync_interval
 
             config.configure do |_, _, default|
-              default.before_worker_boot do
+              register_worker_boot_hook default do
                 CurrentRequests.instance.reset!
               end
             end
@@ -37,6 +37,16 @@ module Puma
           CurrentRequests.instance.config = enhanced_config
 
           super
+        end
+
+        private
+
+        def register_worker_boot_hook dsl, &block
+          if dsl.respond_to? :before_worker_boot
+            dsl.before_worker_boot(&block)
+          else
+            dsl.on_worker_boot(&block)
+          end
         end
       end
     end

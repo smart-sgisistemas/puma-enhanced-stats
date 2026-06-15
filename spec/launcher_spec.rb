@@ -52,12 +52,12 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
       run_with_stubbed_super cluster_launcher
       run_with_stubbed_super single_launcher
 
-      cluster_hooks = cluster_launcher.config._options.default_options[:before_worker_boot]
-      single_hooks = single_launcher.config._options.default_options[:before_worker_boot]
+      cluster_hooks = Puma::Enhanced::Stats::PumaCompat.before_worker_boot_hooks cluster_launcher.config
+      single_hooks = Puma::Enhanced::Stats::PumaCompat.before_worker_boot_hooks single_launcher.config
 
       expect(cluster_hooks.length).to eq(1)
-      expect(cluster_hooks.first[:cluster_only]).to be true
-      expect(single_hooks).to be_nil
+      expect(Puma::Enhanced::Stats::PumaCompat.before_worker_boot_cluster_only?(cluster_hooks.first)).to be true
+      expect(single_hooks.to_a).to be_empty
     end
 
     it "clears the registry when the hook runs" do
@@ -70,7 +70,8 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
       )
 
       run_with_stubbed_super cluster_launcher
-      cluster_launcher.config._options.default_options[:before_worker_boot].first[:block].call(0)
+      hook = Puma::Enhanced::Stats::PumaCompat.before_worker_boot_hooks(cluster_launcher.config).first
+      Puma::Enhanced::Stats::PumaCompat.before_worker_boot_block(hook).call(0)
 
       expect(registry.snapshot["items"]).to be_empty
     end
