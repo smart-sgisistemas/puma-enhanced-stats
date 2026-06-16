@@ -24,4 +24,11 @@ RSpec.describe Puma::Enhanced::Stats::ProcessMetrics do
 
     expect(described_class.read).to eq(empty)
   end
+
+  it "returns empty metrics when ps output is blank" do
+    stub_const("RUBY_PLATFORM", "linux")
+    allow(described_class).to receive(:`).and_return("")
+
+    expect(described_class.read).to eq(empty)
+  end
 end

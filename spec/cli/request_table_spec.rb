@@ -27,4 +27,22 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestTable do
     expect(lines.join("\n")).to include("└ shop_id:")
     expect(lines.join("\n")).to include("└ session.user_id:")
   end
+
+  it "shows empty and truncated request tables" do
+    empty = described_class.new([], inner_width: 80, colors: colors)
+    expect(empty.render(max_items: 5)).to eq(["No in-flight requests"])
+
+    wide = described_class.new([items.first, items.first], inner_width: 200, colors: colors)
+    output = wide.render(max_items: 1).join("\n")
+    expect(output).to include("+1 more requests")
+    expect(output).to include("SHOP ID")
+  end
+
+  it "omits flat columns when the table is too narrow" do
+    table = described_class.new(items, inner_width: 1, colors: colors)
+    lines = table.render(max_items: 1)
+
+    expect(lines.join("\n")).not_to include("IN-FLIGHT")
+    expect(lines.join("\n")).to include("└")
+  end
 end

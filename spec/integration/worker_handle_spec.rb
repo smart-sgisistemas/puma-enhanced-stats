@@ -23,6 +23,11 @@ RSpec.describe Puma::Enhanced::Stats::WorkerHandle do
     expect(handle.enhanced_stats[:items]).to be_empty
   end
 
+  it "delegates to super when ping has no json payload" do
+    expect { handle.ping!("p1234\n") }.not_to raise_error
+    expect(handle.enhanced_stats[:items]).to be_empty
+  end
+
   it "tracks worker max keys across pings" do
     skip "WORKER_MAX_KEYS unavailable before Puma 7" unless Puma::Cluster::WorkerHandle.const_defined?(:WORKER_MAX_KEYS)
 
@@ -41,5 +46,14 @@ RSpec.describe Puma::Enhanced::Stats::WorkerHandle do
 
     expect(handle.enhanced_stats[:items]).to be_empty
     expect(handle.enhanced_stats[:synced_at]).to be_nil
+  end
+
+  it "applies puma status without worker max tracking when keys are unavailable" do
+    allow(handle.class).to receive(:const_defined?).and_call_original
+    allow(handle.class).to receive(:const_defined?).with(:WORKER_MAX_KEYS).and_return(false)
+
+    handle.ping!('p1234{"backlog":2,"running":1,"pool_capacity":5,"max_threads":5,"requests_count":0}')
+
+    expect(handle.last_status[:backlog]).to eq(2)
   end
 end

@@ -1,9 +1,11 @@
 PATH
   remote: .
   specs:
-    puma-enhanced-stats (0.1.4)
+    puma-enhanced-stats (0.2.0)
+      pastel (~> 0.8)
       puma (>= 8.0, < 9)
       rails (>= 7.0, < 8)
+      tty-screen (~> 0.8)
 
 GEM
   remote: https://rubygems.org/
@@ -133,6 +135,8 @@ GEM
       racc (~> 1.4)
     nokogiri (1.17.2-aarch64-linux)
       racc (~> 1.4)
+    pastel (0.8.0)
+      tty-color (~> 0.5)
     puma (8.0.2)
       nio4r (~> 2.0)
     racc (1.8.1)
@@ -192,6 +196,8 @@ GEM
     simpleidn (0.2.3)
     thor (1.5.0)
     timeout (0.6.1)
+    tty-color (0.6.0)
+    tty-screen (0.8.2)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
     websocket-driver (0.8.1)

@@ -11,6 +11,28 @@ RSpec.describe Puma::Enhanced::Stats::BodyProxy do
     expect(calls).to eq(1)
   end
 
+  it "returns an enumerator from each without a block" do
+    proxy = described_class.new(%w[a]) {}
+
+    expect(proxy.each).to be_a(Enumerator)
+  end
+
+  it "closes bodies that do not implement close" do
+    calls = 0
+    proxy = described_class.new(Object.new) { calls += 1 }
+
+    expect { proxy.close }.not_to raise_error
+    expect(calls).to eq(1)
+  end
+
+  it "reports delegated methods via respond_to_missing?" do
+    body = Object.new
+    def body.custom = "ok"
+    proxy = described_class.new(body) {}
+
+    expect(proxy.respond_to?(:custom)).to be(true)
+  end
+
   it "calls callback on close" do
     calls = 0
     body = Object.new

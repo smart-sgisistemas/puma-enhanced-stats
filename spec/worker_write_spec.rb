@@ -11,6 +11,16 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
     Puma::Enhanced::Stats::CurrentRequests.instance.reset!
   end
 
+  it "injects _enhanced_stats into ping messages with brace-delimited JSON" do
+    message = "p1234 {\"backlog\":0, \"running\":1, \"pool_capacity\":5, \"max_threads\":5, \"requests_count\":0}\n"
+
+    described_class.new(io) << message
+
+    payload = JSON.parse(io.string[/\{.*\}/])
+    expect(payload["backlog"]).to eq(0)
+    expect(payload["_enhanced_stats"]).to include("items", "process")
+  end
+
   it "injects _enhanced_stats into worker ping messages" do
     Puma::Enhanced::Stats::CurrentRequests.instance.register(
       "REQUEST_METHOD" => "GET",

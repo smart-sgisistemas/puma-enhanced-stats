@@ -86,6 +86,18 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
     expect(registry.config).to equal(config)
   end
 
+  it "registers worker boot via on_worker_boot when before_worker_boot is unavailable" do
+    dsl = double("dsl")
+    allow(dsl).to receive(:respond_to?).with(:before_worker_boot).and_return(false)
+    allow(dsl).to receive(:on_worker_boot)
+
+    host = Object.new
+    host.extend described_class
+    host.send(:register_worker_boot_hook, dsl) { registry.reset! }
+
+    expect(dsl).to have_received(:on_worker_boot)
+  end
+
   it "assigns registry config from launcher options" do
     custom = Puma::Enhanced::Stats::Configuration.new.tap { |c| c.request_limit = 7 }
     launcher.config.options[:enhanced_stats] = custom
@@ -93,6 +105,12 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
     run_with_stubbed_super launcher
 
     expect(registry.config).to equal(custom)
+  end
+
+  it "returns nil workers in single mode" do
+    single = Puma::Launcher.new(Puma::Configuration.new)
+
+    expect(single.workers).to be_nil
   end
 
   describe "worker_check_interval" do

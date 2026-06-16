@@ -76,6 +76,14 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     expect(names).to include("custom")
   end
 
+  it "requires exactly one name when registering fields with a block" do
+    expect do
+      config.register_fields :request, :first, :second do |_env|
+        "ok"
+      end
+    end.to raise_error(Puma::Enhanced::Stats::Error, /exactly one name/)
+  end
+
   it "registers session fields via register_fields" do
     config.register_fields :session, :user_id
 

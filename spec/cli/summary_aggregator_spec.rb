@@ -32,4 +32,47 @@ RSpec.describe Puma::Enhanced::Stats::CLI::SummaryAggregator do
     expect(backlog.level).to eq(:warn)
     expect(backlog.value).to eq("3")
   end
+
+  it "flags critical backlog, thread, and pool saturation" do
+    payload["workers"] = [{
+      "index" => 0,
+      "pid" => 1,
+      "puma" => { "backlog" => 5, "running" => 5, "pool_capacity" => 0, "max_threads" => 5 },
+      "process" => {}
+    }]
+
+    lines = described_class.new(payload).lines
+    backlog = lines.find { |line| line.label == "Backlog (global)" }
+    threads = lines.find { |line| line.label == "Threads in use" }
+    pool = lines.find { |line| line.label == "Pool capacity free" }
+
+    expect(backlog.level).to eq(:crit)
+    expect(threads.level).to eq(:crit)
+    expect(pool.level).to eq(:crit)
+  end
+
+  it "flags warning levels for elevated utilization" do
+    payload["workers"] = [{
+      "index" => 0,
+      "pid" => 1,
+      "puma" => { "backlog" => 1, "running" => 4, "pool_capacity" => 1, "max_threads" => 5 },
+      "process" => {}
+    }]
+
+    lines = described_class.new(payload).lines
+    threads = lines.find { |line| line.label == "Threads in use" }
+    pool = lines.find { |line| line.label == "Pool capacity free" }
+
+    expect(threads.level).to eq(:warn)
+    expect(pool.level).to eq(:warn)
+  end
+
+  it "warns when only some workers are reporting" do
+    payload["summary"]["workers_total"] = 2
+    payload["summary"]["workers_reporting"] = 1
+
+    reporting = described_class.new(payload).lines.find { |line| line.label == "Workers reporting" }
+
+    expect(reporting.level).to eq(:warn)
+  end
 end

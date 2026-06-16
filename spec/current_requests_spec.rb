@@ -302,4 +302,18 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       expect(registry.snapshot["dropped_count"]).to eq(0)
     end
   end
+
+  describe "private eviction helpers" do
+    it "no-ops keep_longest eviction when policy is reject_new" do
+      registry.config.limit_policy = :reject_new
+      2.times { registry.register(env) }
+
+      expect { registry.send(:evict_when_full_keep_longest!) }
+        .not_to change { registry.snapshot["items"].size }
+    end
+
+    it "no-ops newest eviction when the registry is empty" do
+      expect { registry.send(:evict_newest!) }.not_to raise_error
+    end
+  end
 end
