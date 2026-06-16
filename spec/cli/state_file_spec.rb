@@ -81,7 +81,9 @@ RSpec.describe Puma::Enhanced::Stats::CLI::StateFile do
 
   it "falls back to YAML when Puma::StateFile raises" do
     stub_const("Puma::StateFile", Class.new do
-      def initialize(*) = raise StandardError, "broken"
+      def initialize(*)
+        raise StandardError, "broken"
+      end
     end)
     File.write path, <<~YAML
       pid: 99
