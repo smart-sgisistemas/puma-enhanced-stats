@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.2.0",
+    "gem_version": "0.2.1",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",

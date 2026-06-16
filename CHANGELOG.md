@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 — 2026-06-16
+
+### Changed
+
+- README: dedicated **CLI** section with layout explanation, `PROCESSES (--top)` description, and terminal output examples (cluster wide, narrow overflow, compact grid, single mode, special states)
+
 ## 0.2.0 — 2026-06-16
 
 ### Added
