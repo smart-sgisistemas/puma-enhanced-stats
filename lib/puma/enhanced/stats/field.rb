@@ -6,7 +6,7 @@ module Puma
       # Named value extractor registered by {Configuration#register_fields}.
       #
       # Each field has an output {#name} and an optional {#block}. At request
-      # entry, {CurrentRequestsRegistry} calls {#extract} with +env+ (request
+      # entry, {CurrentRequests} calls {#extract} with +env+ (request
       # fields) or +rack.session+ (session fields). String truncation happens
       # later in the registry, not here.
       #
@@ -14,7 +14,7 @@ module Puma
       # in {Configuration#initialize}.
       #
       # @see Configuration#register_fields
-      # @see CurrentRequestsRegistry
+      # @see CurrentRequests
       class Field
         # @!attribute [r] name
         #   Key written on the in-flight entry (+session+ hash for session fields).
@@ -40,7 +40,7 @@ module Puma
         #
         # @param source [Hash] Rack +env+ or +rack.session+ hash
         # @return [Object, nil] unsanitized value; truncation is applied by
-        #   {CurrentRequestsRegistry}
+        #   {CurrentRequests}
         def extract source
           if block
             block.call source

@@ -4,11 +4,11 @@ require_relative "stats/version"
 
 require_relative "stats/field"
 require_relative "stats/configuration"
-require_relative "stats/current_requests_registry"
+require_relative "stats/current_requests"
 require_relative "stats/body_proxy"
-require_relative "stats/middleware"
+require_relative "stats/request_start_middleware"
+require_relative "stats/requests_middleware"
 require_relative "stats/process_metrics"
-require_relative "stats/normalizer"
 require_relative "stats/snapshot"
 require_relative "stats/status"
 require_relative "stats/worker_handle"
@@ -34,12 +34,13 @@ module Puma
     #
     # Require this file (via the gem entrypoint) to load the plugin. On require it:
     #
-    # 1. Loads components ({Middleware}, control {Status} patch, …)
+    # 1. Loads components ({RequestsMiddleware}, control {Status} patch, …)
     # 2. Prepends Puma classes and registers +enhanced-stats+ in {Puma::ControlCLI}
-    # 3. Registers {Railtie} to insert {Middleware} after the Rails session store
+    # 3. Registers {Railtie} to insert {RequestStartMiddleware} and append
+    #    {RequestsMiddleware} on the Rails middleware stack
     #
     # When the server starts, {Launcher} publishes +options[:enhanced_stats]+
-    # (or {Configuration.default}) on {CurrentRequestsRegistry#config=} before
+    # (or {Configuration.default}) on {CurrentRequests#config=} before
     # {Puma::Launcher#run}.
     #
     # @see Configuration

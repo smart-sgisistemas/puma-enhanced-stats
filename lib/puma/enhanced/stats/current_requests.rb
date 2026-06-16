@@ -8,19 +8,19 @@ module Puma
     module Stats
       # Thread-safe store of in-flight requests for the current worker process.
       #
-      # {Middleware} registers on entry; entries are built from {#config} fields
+      # {RequestsMiddleware} registers on entry; entries are built from {#config} fields
       # and removed when the response body finishes. Configuration is set by
       # {Launcher} from +options[:enhanced_stats]+ (or
       # {Configuration.default}) and inherited by forked workers.
       #
-      # @see Middleware
+      # @see RequestsMiddleware
       # @see Launcher
       # @see Configuration.default
-      class CurrentRequestsRegistry
+      class CurrentRequests
         include Singleton
 
         class << self
-          # Clears the singleton registry (delegates to {#reset!}).
+          # Clears the singleton (delegates to {#reset!}).
           #
           # @return [void]
           def reset! = instance.reset!
@@ -31,35 +31,27 @@ module Puma
         #   @return [Configuration]
         attr_reader :config
 
-        # Initializes an empty registry with {Configuration.default}.
-        #
         # @return [void]
         def initialize
           @mutex = Mutex.new
           @entries = {}
           @dropped_count = 0
           @truncated = false
-          @sequence = 0
           @config = Configuration.default
         end
 
-        # Assigns field extractors and limits for new registrations.
-        #
         # @param value [Configuration]
         # @return [Configuration]
         def config=(value)
           @mutex.synchronize { @config = value }
         end
 
-        # Clears all entries and drop counters.
-        #
         # @return [void]
         def reset!
           @mutex.synchronize do
             @entries.clear
             @dropped_count = 0
             @truncated = false
-            @sequence = 0
           end
         end
 
@@ -70,100 +62,101 @@ module Puma
         # +id+ replaces the previous entry and increments +dropped_count+.
         #
         # @param env [Hash] Rack environment
-        # @return [String, nil] entry id, or +nil+ when {Configuration#limit_policy}
+        # @return [String, nil] entry id, or +nil+ when {#config} {#limit_policy}
         #   is +:reject_new+ and the registry is full
         def register env
-          id = started_at = sequence = configuration = nil
+          id = started_at = nil
 
           @mutex.synchronize do
-            configuration = @config
-            return nil if reject_new_when_full? configuration
+            return nil if reject_new_when_full?
 
-            evict_when_full_keep_longest! configuration
+            evict_when_full_keep_longest!
 
             id = request_id_for env
-            if @entries.key? id
-              @entries.delete id
-              @dropped_count += 1
-            end
-
-            started_at = Time.now.utc
-            @sequence += 1
-            sequence = @sequence
+            drop_duplicate_id! id
+            started_at = started_at_for env
           end
 
-          entry, truncated = build_entry env, id: id, started_at: started_at, configuration: configuration
+          entry, truncated = build_entry env, id: id, started_at: started_at
 
           @mutex.synchronize do
-            return nil if reject_new_when_full? configuration
+            return nil if reject_new_when_full?
 
-            evict_when_full_keep_longest! configuration
+            evict_when_full_keep_longest!
 
             @truncated = true if truncated
-            @entries[id] = entry.merge "_seq" => sequence
+            @entries[id] = entry
           end
 
           id
         end
 
-        # Removes an in-flight entry by id.
-        #
         # @param id [String] entry id returned by {#register}
         # @return [void]
         def unregister(id) = @mutex.synchronize { @entries.delete id }
 
-        # Returns a point-in-time view of in-flight requests for this worker.
+        # Returns current in-flight items and meta counters since the previous
+        # {#snapshot} (or process start). Resets +dropped_count+ and +truncated+
+        # after reading so each observation reports a delta for the sync interval.
         #
         # @return [Hash{String => Object}] +items+, +dropped_count+, +truncated+
         def snapshot
           @mutex.synchronize do
-            items = @entries.values.sort_by { |entry| [entry["started_at"].to_s, entry["_seq"].to_i] }
-              .map { |entry| entry.reject { |key| key == "_seq" } }
-            {
-              "items" => items,
+            result = {
+              "items" => @entries.values,
               "dropped_count" => @dropped_count,
               "truncated" => @truncated
             }
+            @dropped_count = 0
+            @truncated = false
+            result
           end
         end
 
         private
 
-        def reject_new_when_full? configuration
-          return false unless @entries.size >= configuration.request_limit
-          return false unless configuration.limit_policy == :reject_new
+        def reject_new_when_full?
+          return false unless @entries.size >= @config.request_limit
+          return false unless @config.limit_policy == :reject_new
 
           @dropped_count += 1
           true
         end
 
-        def evict_when_full_keep_longest! configuration
-          return unless @entries.size >= configuration.request_limit
-          return unless configuration.limit_policy == :keep_longest
+        def evict_when_full_keep_longest!
+          return unless @entries.size >= @config.request_limit
+          return unless @config.limit_policy == :keep_longest
 
           evict_newest!
           @dropped_count += 1
         end
 
-        def build_entry env, id:, started_at:, configuration:
-          request_fields, request_truncated = build_fields env, namespace: :request, configuration: configuration
+        def drop_duplicate_id! id
+          return unless @entries.key? id
+
+          @entries.delete id
+          @dropped_count += 1
+        end
+
+        def build_entry env, id:, started_at:
+          request_fields, request_truncated = build_fields env, namespace: :request
           entry = { "id" => id, "started_at" => started_at.utc.iso8601(6) }.merge! request_fields
 
-          session_fields, session_truncated = build_fields env, namespace: :session, configuration: configuration
+          session_fields, session_truncated = build_fields env, namespace: :session
           entry["session"] = session_fields unless session_fields.empty?
 
           [entry, request_truncated || session_truncated]
         end
 
-        def build_fields env, namespace:, configuration:
+        def build_fields env, namespace:
           rack_session = env["rack.session"] || {}
           source = namespace == :request ? env : rack_session
           values = {}
           truncated = false
 
-          configuration.fields_for(namespace).each do |field|
+          @config.fields_for(namespace).each do |field|
             raw = field.extract source
-            value, field_truncated = sanitize_field raw, configuration: configuration
+            value, field_truncated = sanitize_field raw
             truncated ||= field_truncated
             values[field.name] = value
           end
@@ -171,12 +164,12 @@ module Puma
           [values, truncated]
         end
 
-        def sanitize_field value, configuration:
+        def sanitize_field value
           return [nil, false] if value.nil?
 
           string = (value.is_a? String) ? value : value.to_s
-          if string.bytesize > configuration.max_field_length
-            [string.byteslice(0, configuration.max_field_length), true]
+          if string.bytesize > @config.max_field_length
+            [string.byteslice(0, @config.max_field_length), true]
           else
             [string, false]
           end
@@ -185,8 +178,24 @@ module Puma
         def evict_newest!
           return if @entries.empty?
 
-          newest_id, = @entries.max_by { |_, entry| [entry["started_at"].to_s, entry["_seq"].to_i] }
-          @entries.delete newest_id
+          @entries.delete @entries.keys.last
+        end
+
+        def started_at_for env
+          header = env["HTTP_X_REQUEST_START"].to_s.strip
+          return Time.now.utc if header.empty?
+
+          value = header.sub(/\At=/, "")
+          time = if value.match?(/\A\d{13,}\z/)
+                   Time.at(value.to_i / 1000.0)
+                 elsif value.match?(/\A\d+\.\d+\z/)
+                   Time.at(value.to_f)
+                 elsif value.match?(/\A\d+\z/)
+                   Time.at(value.to_i)
+                 end
+          time&.utc || Time.now.utc
+        rescue StandardError
+          Time.now.utc
         end
 
         def request_id_for env

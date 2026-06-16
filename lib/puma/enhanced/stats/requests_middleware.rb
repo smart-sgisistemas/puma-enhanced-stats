@@ -4,24 +4,24 @@ module Puma
   module Enhanced
     module Stats
       # Rack middleware that registers in-flight requests in
-      # {CurrentRequestsRegistry} at entry and unregisters when the response
+      # {CurrentRequests} at entry and unregisters when the response
       # body completes (or on hijack close).
       #
-      # Inserted by {Railtie} after the Rails session store.
+      # Inserted by {Railtie} as the innermost Rails middleware layer.
       #
-      # @see CurrentRequestsRegistry
-      class Middleware
+      # @see CurrentRequests
+      class RequestsMiddleware
         # @param app [#call] downstream Rack app
-        # @param registry [CurrentRequestsRegistry]
+        # @param registry [CurrentRequests]
         # @return [void]
-        def initialize app, registry: CurrentRequestsRegistry.instance
+        def initialize app, registry: CurrentRequests.instance
           @app = app
           @registry = registry
         end
 
         # Registers the request, delegates to the app, and unregisters when the
         # response body completes. On hijack, unregisters when the hijacked IO
-        # closes. When {CurrentRequestsRegistry#register} returns +nil+
+        # closes. When {CurrentRequests#register} returns +nil+
         # (+:reject_new+ policy), passes through without tracking.
         #
         # @param env [Hash] Rack environment

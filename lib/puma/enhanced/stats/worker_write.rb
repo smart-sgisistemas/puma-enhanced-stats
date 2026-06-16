@@ -58,7 +58,7 @@ module Puma
           message
         end
 
-        def enhanced_stats_payload = CurrentRequestsRegistry.instance.snapshot.merge("process" => ProcessMetrics.read)
+        def enhanced_stats_payload = CurrentRequests.instance.snapshot.merge("process" => ProcessMetrics.read)
       end
     end
   end

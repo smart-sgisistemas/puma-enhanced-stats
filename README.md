@@ -35,7 +35,7 @@ Then run:
 bundle install
 ```
 
-The Railtie inserts stats middleware after the Rails session store automatically.
+The Railtie registers two middleware layers: `RequestStartMiddleware` (outermost) sets `HTTP_X_REQUEST_START` when absent; `RequestsMiddleware` (innermost) tracks in-flight requests. Session middleware runs between them on the request path, so `rack.session` remains available for session field extractors.
 
 ## Control app setup
 
@@ -139,8 +139,10 @@ end
 
 | Policy | Behavior when the registry is full |
 |--------|--------------------------------------|
-| `:keep_longest` (default) | Evicts the newest in-flight entry and increments `dropped_count` |
-| `:reject_new` | Skips registration for new requests and increments `dropped_count` |
+| `:keep_longest` (default) | Evicts the newest in-flight entry and increments `dropped_count` for the current sync interval |
+| `:reject_new` | Skips registration for new requests and increments `dropped_count` for the current sync interval |
+
+`dropped_count` and `truncated` in each worker's `requests.meta` report events since the last worker ping (cluster) or last snapshot read (single), not cumulative process lifetime.
 
 ## JSON response
 
@@ -162,7 +164,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.1.3",
+    "gem_version": "0.1.4",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
@@ -242,7 +244,7 @@ In cluster mode, `sync_interval` overrides Puma's `worker_check_interval`, contr
 ## Platform notes
 
 - **Process metrics** (`rss_bytes`, `cpu_percent`) are sampled via `ps` on **Linux and macOS** only. On other platforms (e.g. Windows), values are `null`.
-- **Rails required.** Middleware is inserted by the Railtie immediately after the configured session store so `rack.session` is available for session field extractors.
+- **Rails required.** The Railtie inserts `RequestStartMiddleware` at the stack head and appends `RequestsMiddleware` as the innermost layer so session middleware runs earlier on the request path and `rack.session` is available for session field extractors.
 - **Activation** is controlled by including or omitting the gem in the Gemfile; there is no `enabled` flag.
 
 ## Development

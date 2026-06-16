@@ -9,14 +9,14 @@ module Puma
       #
       # Built by {DSL#enhanced_stats} in +puma.rb+, stored in
       # +launcher.config.options[:enhanced_stats]+, and assigned to
-      # {CurrentRequestsRegistry#config=} by {Launcher}.
+      # {CurrentRequests#config=} by {Launcher}.
       # Omit the block to use {Configuration.default}.
       #
       # Registered fields live in {#fields}, keyed by +:request+ and +:session+.
       #
       # @see DSL
       # @see Configuration.default
-      # @see CurrentRequestsRegistry#config
+      # @see CurrentRequests#config
       class Configuration
         # @return [Array<Symbol>] allowed {#limit_policy} values
         LIMIT_POLICIES = %i[keep_longest reject_new].freeze

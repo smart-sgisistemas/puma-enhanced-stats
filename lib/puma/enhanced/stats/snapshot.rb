@@ -7,12 +7,11 @@ module Puma
       #
       # Used by {Status} and +pumactl enhanced-stats+.
       #
-      # In single mode, reads the live {CurrentRequestsRegistry} and
+      # In single mode, reads the live {CurrentRequests} and
       # {ProcessMetrics.read}. In cluster mode, merges data synced from workers
       # via {WorkerHandle}. Limits and field extractors come from
       # +launcher.config.options[:enhanced_stats]+ or {Configuration.default}.
       #
-      # @see Normalizer
       # @see Configuration.default
       # @see schema/enhanced-stats-v1.json
       class Snapshot
@@ -31,9 +30,20 @@ module Puma
             {
               "schema_version" => 1,
               "meta" => meta(stats, now, config),
-              "summary" => Normalizer.summary(workers),
+              "summary" => summary(workers),
               "workers" => workers
             }
+          end
+
+          # Reads +key+ from +hash+ whether stored as a symbol or string.
+          #
+          # @param hash [Hash, nil]
+          # @param key [Symbol, String]
+          # @return [Object, nil]
+          def fetch hash, key
+            return nil if hash.nil?
+
+            hash[key] || hash[key.to_s] || hash[key.to_sym]
           end
 
           private
@@ -61,10 +71,10 @@ module Puma
             }
           end
 
-          def cluster?(stats) = Normalizer.fetch(stats, :worker_status)
+          def cluster?(stats) = fetch(stats, :worker_status)
 
           def normalize_workers launcher, now, config, stats
-            worker_status = Normalizer.fetch(stats, :worker_status)
+            worker_status = fetch(stats, :worker_status)
 
             if worker_status
               enhanced_by_index = enhanced_stats_by_worker_index(launcher)
@@ -85,47 +95,93 @@ module Puma
           end
 
           def normalize_cluster_worker worker_status, now, config, enhanced_by_index
-            index = Normalizer.fetch(worker_status, :index)
-            handle = Normalizer.fetch(worker_status, :enhanced_stats) ||
+            index = fetch(worker_status, :index)
+            handle = fetch(worker_status, :enhanced_stats) ||
                      enhanced_by_index[index] ||
                      {}
-            items = Array(Normalizer.fetch(handle, :items)).map do |item|
-              Normalizer.item_with_elapsed item, now
-            end
+            items = Array(fetch(handle, :items)).map { |item| item_with_elapsed item, now }
 
             {
               "index" => index,
-              "pid" => Normalizer.fetch(worker_status, :pid),
-              "synced_at" => Normalizer.fetch(handle, :synced_at),
-              "puma" => Normalizer.pick_puma_stats(Normalizer.fetch(worker_status, :last_status)),
-              "process" => Normalizer.normalize_process(Normalizer.fetch(handle, :process)),
-              "requests" => Normalizer.requests_section(
+              "pid" => fetch(worker_status, :pid),
+              "synced_at" => fetch(handle, :synced_at),
+              "puma" => pick_puma_stats(fetch(worker_status, :last_status)),
+              "process" => normalize_process(fetch(handle, :process)),
+              "requests" => requests_section(
                 items: items,
                 config: config,
-                truncated: Normalizer.fetch(handle, :truncated) || false,
-                dropped_count: Normalizer.fetch(handle, :dropped_count) || 0
+                truncated: fetch(handle, :truncated) || false,
+                dropped_count: fetch(handle, :dropped_count) || 0
               )
             }
           end
 
           def normalize_single_worker now, config, stats
-            registry_snapshot = CurrentRequestsRegistry.instance.snapshot
-            items = registry_snapshot["items"].map { |item| Normalizer.item_with_elapsed item, now }
+            registry_snapshot = CurrentRequests.instance.snapshot
+            items = registry_snapshot["items"].map { |item| item_with_elapsed item, now }
 
-            puma_stats = Normalizer.fetch(stats, :last_status) || stats
+            puma_stats = fetch(stats, :last_status) || stats
 
             {
               "index" => 0,
               "pid" => Process.pid,
               "synced_at" => now.iso8601,
-              "puma" => Normalizer.pick_puma_stats(puma_stats),
+              "puma" => pick_puma_stats(puma_stats),
               "process" => ProcessMetrics.read,
-              "requests" => Normalizer.requests_section(
+              "requests" => requests_section(
                 items: items,
                 config: config,
                 truncated: registry_snapshot["truncated"],
                 dropped_count: registry_snapshot["dropped_count"]
               )
+            }
+          end
+
+          def item_with_elapsed item, now
+            started = Time.iso8601 item["started_at"]
+            item.merge "elapsed_ms" => ((now - started) * 1000).to_i
+          rescue ArgumentError
+            item.merge "elapsed_ms" => nil
+          end
+
+          def normalize_process raw
+            return ProcessMetrics::EMPTY if raw.nil?
+
+            {
+              "rss_bytes" => fetch(raw, :rss_bytes),
+              "cpu_percent" => fetch(raw, :cpu_percent)
+            }
+          end
+
+          def requests_section items:, config:, truncated:, dropped_count:
+            {
+              "meta" => {
+                "count" => items.size,
+                "request_limit" => config.request_limit,
+                "limit_policy" => config.limit_policy.to_s,
+                "truncated" => truncated,
+                "dropped_count" => dropped_count
+              },
+              "items" => items
+            }
+          end
+
+          def pick_puma_stats last_status
+            {
+              "backlog" => fetch(last_status, :backlog) || 0,
+              "running" => fetch(last_status, :running) || 0,
+              "pool_capacity" => fetch(last_status, :pool_capacity) || 0,
+              "max_threads" => fetch(last_status, :max_threads) || 0,
+              "requests_count" => fetch(last_status, :requests_count) || 0
+            }
+          end
+
+          def summary workers
+            {
+              "workers_total" => workers.size,
+              "workers_reporting" => workers.count { |worker| worker["synced_at"] },
+              "requests_in_flight" => workers.sum { |w| w.dig("requests", "meta", "count") || 0 },
+              "requests_dropped_total" => workers.sum { |w| w.dig("requests", "meta", "dropped_count") || 0 }
             }
           end
         end

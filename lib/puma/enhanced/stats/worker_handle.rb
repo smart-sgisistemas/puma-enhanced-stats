@@ -49,13 +49,13 @@ module Puma
           json = JSON.parse status[json_start..]
           apply_puma_status! json
 
-          payload = Normalizer.fetch(json, :_enhanced_stats)
+          payload = Snapshot.fetch(json, :_enhanced_stats)
           if payload
             @enhanced_stats = {
-              items: Normalizer.fetch(payload, :items) || [],
-              process: Normalizer.fetch(payload, :process),
-              dropped_count: Normalizer.fetch(payload, :dropped_count) || 0,
-              truncated: Normalizer.fetch(payload, :truncated) || false,
+              items: Snapshot.fetch(payload, :items) || [],
+              process: Snapshot.fetch(payload, :process),
+              dropped_count: Snapshot.fetch(payload, :dropped_count) || 0,
+              truncated: Snapshot.fetch(payload, :truncated) || false,
               synced_at: Time.now.utc.iso8601
             }
           end

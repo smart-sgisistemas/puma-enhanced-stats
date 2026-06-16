@@ -34,7 +34,7 @@ module Puma
         def extract: (Hash[untyped, untyped] source) -> untyped
       end
 
-      class CurrentRequestsRegistry
+      class CurrentRequests
         include Singleton
 
         attr_accessor config: Configuration
@@ -45,8 +45,13 @@ module Puma
         def snapshot: () -> Hash[String, untyped]
       end
 
-      class Middleware
-        def initialize: (#call app, ?registry: CurrentRequestsRegistry) -> void
+      class RequestStartMiddleware
+        def initialize: (#call app) -> void
+        def call: (Hash[untyped, untyped] env) -> Array[untyped]
+      end
+
+      class RequestsMiddleware
+        def initialize: (#call app, ?registry: CurrentRequests) -> void
         def call: (Hash[untyped, untyped] env) -> Array[untyped]
       end
 
@@ -64,21 +69,13 @@ module Puma
 
       class Snapshot
         def self.build: (untyped launcher) -> Hash[String, untyped]
+        def self.fetch: (Hash[untyped, untyped]? hash, Symbol | String key) -> untyped
       end
 
       class WorkerWrite
         def initialize: (IO io) -> void
         def <<: (String message) -> void
         def close: () -> void
-      end
-
-      module Normalizer
-        def self.fetch: (Hash[untyped, untyped]? hash, Symbol | String key) -> untyped
-        def self.item_with_elapsed: (Hash[String, untyped] item, Time now) -> Hash[String, untyped]
-        def self.normalize_process: (Hash[untyped, untyped]? raw) -> Hash[String, Integer | Float | nil]
-        def self.requests_section: (items: Array[Hash[String, untyped]], config: Configuration, truncated: bool, dropped_count: Integer) -> Hash[String, untyped]
-        def self.pick_puma_stats: (Hash[untyped, untyped]? last_status) -> Hash[String, Integer]
-        def self.summary: (Array[Hash[String, untyped]] workers) -> Hash[String, Integer]
       end
 
       module Launcher

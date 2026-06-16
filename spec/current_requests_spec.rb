@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
+RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
   subject(:registry) { described_class.instance }
 
   let(:env) do
@@ -35,9 +35,10 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
     sleep 0.01
     third = registry.register(env.merge("PATH_INFO" => "/third"))
 
-    paths = registry.snapshot["items"].map { |item| item["path_info"] }
+    snapshot = registry.snapshot
+    paths = snapshot["items"].map { |item| item["path_info"] }
     expect(paths.none? { |path| path.end_with?("/second") })
-    expect(registry.snapshot["dropped_count"]).to eq(1)
+    expect(snapshot["dropped_count"]).to eq(1)
     expect(paths.any? { |path| path.end_with?("/first") }).to be(true)
     expect(paths.any? { |path| path.end_with?("/third") }).to be(true)
     registry.unregister(first)
@@ -50,8 +51,9 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
     2.times { registry.register(env) }
     registry.register(env.merge("PATH_INFO" => "/rejected"))
 
-    expect(registry.snapshot["items"].size).to eq(2)
-    expect(registry.snapshot["dropped_count"]).to eq(1)
+    snapshot = registry.snapshot
+    expect(snapshot["items"].size).to eq(2)
+    expect(snapshot["dropped_count"]).to eq(1)
   end
 
   it "replaces duplicate request ids and increments dropped_count" do
@@ -115,9 +117,27 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
 
     expect(accepted).not_to be_nil
     expect(slow_result).to be_nil
-    expect(registry.snapshot["items"].size).to eq(1)
-    expect(registry.snapshot["items"].first["path_info"]).to end_with("/rejected")
-    expect(registry.snapshot["dropped_count"]).to eq(1)
+    snapshot = registry.snapshot
+    expect(snapshot["items"].size).to eq(1)
+    expect(snapshot["items"].first["path_info"]).to end_with("/rejected")
+    expect(snapshot["dropped_count"]).to eq(1)
+  end
+
+  describe "started_at" do
+    it "uses HTTP_X_REQUEST_START when present" do
+      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234.567")
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+    end
+
+    it "falls back to the current time when the header is missing" do
+      freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
+      allow(Time).to receive(:now).and_return(freeze_time)
+
+      registry.register env
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+    end
   end
 
   describe "request id" do
@@ -248,9 +268,18 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
       registry.config.max_field_length = 5
       registry.register env.merge("PATH_INFO" => "/very-long-path")
 
-      item = registry.snapshot["items"].first
+      snapshot = registry.snapshot
+      item = snapshot["items"].first
       expect(item["path_info"].bytesize).to be <= 5
+      expect(snapshot["truncated"]).to be(true)
+    end
+
+    it "resets truncated after snapshot" do
+      registry.config.max_field_length = 5
+      registry.register env.merge("PATH_INFO" => "/very-long-path")
+
       expect(registry.snapshot["truncated"]).to be(true)
+      expect(registry.snapshot["truncated"]).to be(false)
     end
 
     it "clears truncated flag on reset" do
@@ -260,6 +289,17 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequestsRegistry do
 
       registry.reset!
       expect(registry.snapshot["truncated"]).to be(false)
+    end
+  end
+
+  describe "snapshot meta counters" do
+    it "resets dropped_count after snapshot" do
+      registry.config.limit_policy = :reject_new
+      2.times { registry.register(env) }
+      registry.register env.merge("PATH_INFO" => "/rejected")
+
+      expect(registry.snapshot["dropped_count"]).to eq(1)
+      expect(registry.snapshot["dropped_count"]).to eq(0)
     end
   end
 end

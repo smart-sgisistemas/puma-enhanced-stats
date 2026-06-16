@@ -4,9 +4,9 @@ module Puma
   module Enhanced
     module Stats
       # Delegates to a Rack response body and runs a callback once when the body
-      # finishes streaming ({Middleware} uses this to unregister in-flight requests).
+      # finishes streaming ({RequestsMiddleware} uses this to unregister in-flight requests).
       #
-      # @see Middleware
+      # @see RequestsMiddleware
       class BodyProxy
         # @param body [Object] Rack response body
         # @yield runs once after {#each} completes or {#close} is called

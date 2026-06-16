@@ -30,7 +30,7 @@ RSpec.describe "enhanced-stats-v1 schema" do
       }
     )
 
-    Puma::Enhanced::Stats::CurrentRequestsRegistry.instance.reset!
+    Puma::Enhanced::Stats::CurrentRequests.instance.reset!
 
     payload = Puma::Enhanced::Stats::Snapshot.build(launcher)
     expect(schema.validate(payload).to_a).to be_empty

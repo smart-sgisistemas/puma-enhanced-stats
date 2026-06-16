@@ -4,13 +4,13 @@ module Puma
   module Enhanced
     module Stats
       # Publishes +options[:enhanced_stats]+ (or {Configuration.default}) on
-      # {CurrentRequestsRegistry#config=} before {Puma::Launcher#run}.
+      # {CurrentRequests#config=} before {Puma::Launcher#run}.
       #
       # In cluster mode, registers a +before_worker_boot+ hook that clears the
       # registry when a worker process starts, and sets +worker_check_interval+
       # from {Configuration#sync_interval}.
       #
-      # @see CurrentRequestsRegistry
+      # @see CurrentRequests
       module Launcher
         # Cluster worker handles from the Puma runner, when clustered.
         #
@@ -29,12 +29,12 @@ module Puma
 
             config.configure do |_, _, default|
               default.before_worker_boot do
-                CurrentRequestsRegistry.instance.reset!
+                CurrentRequests.instance.reset!
               end
             end
           end
 
-          CurrentRequestsRegistry.instance.config = enhanced_config
+          CurrentRequests.instance.config = enhanced_config
 
           super
         end

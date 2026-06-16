@@ -3,7 +3,7 @@
 require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats::Launcher do
-  let(:registry) { Puma::Enhanced::Stats::CurrentRequestsRegistry.instance }
+  let(:registry) { Puma::Enhanced::Stats::CurrentRequests.instance }
 
   let(:launcher) do
     config = Puma::Configuration.new do |user|
@@ -61,7 +61,7 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
     end
 
     it "clears the registry when the hook runs" do
-      registry = Puma::Enhanced::Stats::CurrentRequestsRegistry.instance
+      registry = Puma::Enhanced::Stats::CurrentRequests.instance
       registry.register(
         "REQUEST_METHOD" => "GET",
         "PATH_INFO" => "/",

@@ -40,7 +40,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       "QUERY_STRING" => "",
       "REMOTE_ADDR" => "1.1.1.1"
     }
-    registry = Puma::Enhanced::Stats::CurrentRequestsRegistry.instance
+    registry = Puma::Enhanced::Stats::CurrentRequests.instance
     registry.reset!
     registry.config = config
     registry.register env
@@ -59,7 +59,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       "QUERY_STRING" => "",
       "REMOTE_ADDR" => "1.1.1.1"
     }
-    registry = Puma::Enhanced::Stats::CurrentRequestsRegistry.instance
+    registry = Puma::Enhanced::Stats::CurrentRequests.instance
     registry.reset!
     registry.config = config
     registry.register env

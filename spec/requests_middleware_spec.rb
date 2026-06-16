@@ -2,8 +2,8 @@
 
 require "stringio"
 
-RSpec.describe Puma::Enhanced::Stats::Middleware do
-  let(:registry) { Puma::Enhanced::Stats::CurrentRequestsRegistry.instance }
+RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
+  let(:registry) { Puma::Enhanced::Stats::CurrentRequests.instance }
   let(:env) { Rack::MockRequest.env_for("/", "REMOTE_ADDR" => "127.0.0.1") }
 
   before { registry.reset! }

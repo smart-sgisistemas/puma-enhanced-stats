@@ -8,11 +8,11 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
   end
 
   before do
-    Puma::Enhanced::Stats::CurrentRequestsRegistry.instance.reset!
+    Puma::Enhanced::Stats::CurrentRequests.instance.reset!
   end
 
   it "injects _enhanced_stats into worker ping messages" do
-    Puma::Enhanced::Stats::CurrentRequestsRegistry.instance.register(
+    Puma::Enhanced::Stats::CurrentRequests.instance.register(
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/slow",
       "QUERY_STRING" => "",

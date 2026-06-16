@@ -143,8 +143,8 @@ module IntegrationServer
   end
 
   def reset_gem_state!
-    Puma::Enhanced::Stats::CurrentRequestsRegistry.instance.reset!
-    Puma::Enhanced::Stats::CurrentRequestsRegistry.instance.config =
+    Puma::Enhanced::Stats::CurrentRequests.instance.reset!
+    Puma::Enhanced::Stats::CurrentRequests.instance.config =
       Puma::Enhanced::Stats::Configuration.new
   end
 end

@@ -8,7 +8,7 @@ module Puma
       # Prepended to {Puma::DSL} from {Stats} entrypoint. The +enhanced_stats+ block
       # builds a {Configuration} stored in +@options[:enhanced_stats]+; at
       # server start {Launcher} copies that reference to
-      # {CurrentRequestsRegistry#config=}.
+      # {CurrentRequests#config=}.
       #
       # @example Custom limits and field extractors
       #   enhanced_stats do

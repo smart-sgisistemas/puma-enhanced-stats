@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.4 — 2026-06-16
+
+### Added
+
+- `RequestStartMiddleware` as the outermost Rails layer; sets `HTTP_X_REQUEST_START` (`t=<unix>`) when the header is missing so `started_at` is consistent across proxies
+- `HTTP_X_REQUEST_START` parsing in the in-flight registry (`started_at_for`)
+
+### Changed
+
+- Renamed `CurrentRequestsRegistry` to `CurrentRequests`
+- Renamed `Middleware` to `RequestsMiddleware`; appended as the innermost Rails middleware layer (closest to the router)
+- Railtie stack: `insert_before 0` for `RequestStartMiddleware`, `use` for `RequestsMiddleware` (session middleware still runs earlier on the request path)
+- `truncated` and `dropped_count` in worker snapshots are per-sync-interval deltas; reset after each `CurrentRequests#snapshot`
+- Removed `Normalizer`; snapshot assembly logic consolidated into `Snapshot`
+
 ## 0.1.3 — 2026-06-15
 
 ### Fixed
