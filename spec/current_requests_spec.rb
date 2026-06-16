@@ -130,6 +130,37 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
     end
 
+    it "parses millisecond timestamps from HTTP_X_REQUEST_START" do
+      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234567")
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+    end
+
+    it "parses integer second timestamps from HTTP_X_REQUEST_START" do
+      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234).utc.iso8601(6))
+    end
+
+    it "falls back to the current time when HTTP_X_REQUEST_START is unparseable" do
+      freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
+      allow(Time).to receive(:now).and_return(freeze_time)
+
+      registry.register env.merge("HTTP_X_REQUEST_START" => "t=not-a-timestamp")
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+    end
+
+    it "falls back to the current time when HTTP_X_REQUEST_START parsing raises" do
+      freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
+      allow(Time).to receive(:now).and_return(freeze_time)
+      allow(Time).to receive(:at).and_raise(StandardError)
+
+      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
+
+      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+    end
+
     it "falls back to the current time when the header is missing" do
       freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
       allow(Time).to receive(:now).and_return(freeze_time)

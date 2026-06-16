@@ -9,7 +9,7 @@ if ENV["COVERAGE"]
     add_filter "version.rb"
     add_group "Lib", "lib"
     track_files "lib/**/*.rb"
-    minimum_coverage line: 100, branch: 90
+    minimum_coverage line: 100, branch: 100
   end
 end
 

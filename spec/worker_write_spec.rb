@@ -51,3 +51,23 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
     expect(io.string).to eq(message)
   end
 end
+
+RSpec.describe Puma::Enhanced::Stats::ClusterWorker do
+  it "wraps worker_write with WorkerWrite before boot" do
+    parent = Class.new do
+      attr_reader :pipes
+
+      def initialize(index:, master:, launcher:, pipes:, **kwargs)
+        @pipes = pipes
+      end
+    end
+    worker_class = Class.new(parent) do
+      prepend Puma::Enhanced::Stats::ClusterWorker
+    end
+    io = StringIO.new
+
+    worker = worker_class.new(index: 0, master: nil, launcher: nil, pipes: { worker_write: io })
+
+    expect(worker.pipes[:worker_write]).to be_a(Puma::Enhanced::Stats::WorkerWrite)
+  end
+end

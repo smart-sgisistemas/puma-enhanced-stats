@@ -12,6 +12,7 @@ Gem to collect, enrich, and expose extended statistics from Puma's `control_app`
 | Puma stats | Backlog, running threads, pool capacity, max threads, requests count |
 | Process metrics | RSS (bytes) and CPU percent via `ps` on Linux/macOS |
 | Cluster aggregation | Master merges enhanced stats synced from each worker ping |
+| Terminal CLI | Live dashboard, watch mode, host top view (`puma-enhanced-stats`) |
 
 The gem activates when loaded via Bundler. No `puma.rb` entry is required for defaults.
 
@@ -20,10 +21,17 @@ The gem activates when loaded via Bundler. No `puma.rb` entry is required for de
 - Ruby >= 3.0
 - Rails >= 7.0, < 8
 - Puma >= 8.0
+- Terminal: ANSI colors recommended for the CLI (use `--no-color` in CI)
 
 ## Installation
 
 Add the gem to your Gemfile:
+
+```ruby
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.2.0"
+```
+
+Or track `main` / a branch:
 
 ```ruby
 gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats"
@@ -66,27 +74,102 @@ bundle exec pumactl -S tmp/puma.state enhanced-stats
 
 `pumactl` uses the state file and control socket configured by Puma; authentication follows the same rules as other control commands.
 
-### Terminal dashboard (v0.2.0)
+### Terminal dashboard (CLI)
 
-The gem ships a CLI that renders a full-terminal dashboard from the same JSON contract:
+The gem installs `puma-enhanced-stats`, a full-terminal dashboard that reads the same JSON as `curl` / `pumactl enhanced-stats`.
+
+**Prerequisites:** Puma running with `activate_control_app` (see [Control app setup](#control-app-setup)).
+
+#### Quick examples
+
+One-shot snapshot (state file — same as `pumactl -S`):
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state
+```
+
+Live refresh (interval from server `sync_interval_seconds`, default 5s):
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state -w
+```
+
+With host metrics (`top`-style SYSTEM + PROCESSES blocks):
 
 ```bash
 bundle exec puma-enhanced-stats -S tmp/puma.state --top -w
 ```
 
+Direct HTTP control URL:
+
+```bash
+bundle exec puma-enhanced-stats --url http://127.0.0.1:9293 -T secret
+```
+
+TCP control socket:
+
+```bash
+bundle exec puma-enhanced-stats -C tcp://127.0.0.1:9293 -T secret
+```
+
+Raw JSON (scripts / jq):
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --json | jq '.summary'
+```
+
+Single worker in cluster mode:
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --worker 1
+```
+
+Sort workers and PROCESSES by CPU:
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --top --sort cpu
+```
+
+Compact two-column layout (wide terminal, ≤ 2 workers):
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --compact
+```
+
+CI / plain text (no ANSI):
+
+```bash
+bundle exec puma-enhanced-stats -S tmp/puma.state --no-color
+```
+
+#### Flags
+
 | Flag | Description |
 |------|-------------|
-| `-S` / `-C` / `--url` | Control connection (state file, `tcp://`, or `http://`) |
-| `-T` | Auth token |
-| `-w` / `--watch` | Auto-refresh using `sync_interval` from the server (default 5s) |
-| `--top` | Host SYSTEM + PROCESSES blocks (local OS metrics) |
-| `--compact` | Two-column worker grid (max 2 workers, terminal ≥ 120 cols) |
-| `--json` | Raw JSON output |
-| `--no-color` | Plain text (CI-friendly) |
-| `--worker N` | Filter one worker |
-| `--sort FIELD` | Sort workers and PROCESSES by `cpu`, `rss`, `backlog`, or `index` |
+| `-S`, `--state PATH` | Puma state file (same as `pumactl -S`) |
+| `-C`, `--control-url URL` | Control bind (`tcp://127.0.0.1:9293`) |
+| `--url URL` | HTTP control URL (`http://127.0.0.1:9293`) |
+| `-T`, `--token TOKEN` | Control app auth token |
+| `-w`, `--watch` | Auto-refresh using `meta.sync_interval_seconds` from the server |
+| `--top` | Show **SYSTEM** (load/CPU/memory) and **PROCESSES** (per-Puma-worker RSS/CPU) |
+| `--compact` | Two-column worker grid (requires ≥ 120 columns; max 2 workers) |
+| `--json` | Print raw enhanced-stats JSON |
+| `--no-color` | Disable ANSI colors |
+| `--worker N` | Show only worker index `N` |
+| `--sort FIELD` | Sort workers and PROCESSES: `cpu`, `rss`, `backlog`, or `index` (default) |
+| `-h`, `--help` | Usage |
 
-Layout order: **HEADER** → **SYSTEM** / **PROCESSES** (with `--top`) → **SUMMARY** (global backlog, threads, pool) → **WORKER** boxes with in-flight requests → **FOOTER** (with `-w`).
+#### Layout
+
+Rendered top to bottom:
+
+1. **HEADER** — gem/Puma/Ruby versions, mode, sync interval, collection time
+2. **SYSTEM** / **PROCESSES** — only with `--top` (host-level metrics)
+3. **SUMMARY** — aggregated backlog, running threads, pool capacity, in-flight requests
+4. **WORKER** boxes — Puma pool bars + in-flight request table per worker
+5. **FOOTER** — refresh hint when `-w` is active
+
+Bars use color thresholds (green → yellow → red) for backlog, thread utilization, RSS, and CPU. Custom `request` / `session` fields from `enhanced_stats` appear as extra columns when present.
 
 ## Usage
 
@@ -186,7 +269,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.1.4",
+    "gem_version": "0.2.0",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
@@ -276,6 +359,13 @@ Clone the repository and install dependencies:
 ```bash
 bin/setup
 bundle exec rake
+```
+
+Coverage (100% line + branch):
+
+```bash
+COVERAGE=true bundle exec rake spec:coverage
+# report: coverage/index.html
 ```
 
 Or use Docker:

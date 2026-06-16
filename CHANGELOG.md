@@ -1,14 +1,29 @@
 # Changelog
 
-## 0.2.0 — Unreleased
+## 0.2.0 — 2026-06-16
 
 ### Added
 
-- `puma-enhanced-stats` CLI (`exe/puma-enhanced-stats`) — full-terminal dashboard with boxed sections, color bars, and WARN/CRIT thresholds
-- Flags: `--watch` (refresh = server `sync_interval`), `--top` (SYSTEM + PROCESSES), `--compact`, `--json`, `--no-color`, `--worker`, `--sort`
-- Aggregated **SUMMARY** (global backlog, threads in use, pool capacity free)
-- Dynamic in-flight request columns with nested overflow for custom `request` / `session` fields
+- **`puma-enhanced-stats` CLI** (`exe/puma-enhanced-stats`) — terminal dashboard for the enhanced-stats JSON contract
+  - Boxed sections: HEADER, SUMMARY, per-worker panels, optional FOOTER in watch mode
+  - Color bars with WARN/CRIT thresholds for backlog, threads, RSS, and CPU
+  - Dynamic in-flight request table columns (built-in + custom `request` / `session` fields)
+- **CLI flags**
+  - Connection (same as `pumactl`): `-S` / `--state`, `-C` / `--control-url`, `--url`, `-T` / `--token`
+  - `-w` / `--watch` — auto-refresh using server `sync_interval_seconds`
+  - `--top` — local **SYSTEM** (load, CPU, memory) and **PROCESSES** (Puma workers) blocks
+  - `--compact` — two-column worker grid (terminal ≥ 120 cols, max 2 workers)
+  - `--json` — raw JSON to stdout
+  - `--no-color` — plain text (CI-friendly)
+  - `--worker N` — single-worker view
+  - `--sort` — `cpu`, `rss`, `backlog`, or `index` (workers and PROCESSES table)
+- Aggregated **SUMMARY** row: global backlog, threads in use, pool capacity free, in-flight count
 - Dependencies: `pastel`, `tty-screen`
+- `PumaCompat` helpers for Puma 6/7/8 control ping formats and worker boot hooks
+
+### Changed
+
+- Builds on **0.1.4** middleware and snapshot improvements (`RequestStartMiddleware`, `RequestsMiddleware`, per-interval `truncated` / `dropped_count`)
 
 ## 0.1.4 — 2026-06-16
 

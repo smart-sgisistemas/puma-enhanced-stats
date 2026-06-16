@@ -19,7 +19,9 @@ module Puma
         # @param pipes [Hash{Symbol => IO}] cluster IPC pipes
         # @param kwargs [Hash] remaining arguments forwarded to Puma
         # @return [void]
-        def initialize(index:, master:, launcher:, pipes:, **kwargs) = super(index: index, master: master, launcher: launcher, pipes: pipes.merge(worker_write: WorkerWrite.new(pipes[:worker_write])), **kwargs)
+        def initialize index:, master:, launcher:, pipes:, **kwargs
+          super index: index, master: master, launcher: launcher, pipes: pipes.merge(worker_write: WorkerWrite.new(pipes[:worker_write])), **kwargs
+        end
       end
 
       # IO decorator that injects +_enhanced_stats+ into worker ping JSON.

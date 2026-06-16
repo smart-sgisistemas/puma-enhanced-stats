@@ -162,6 +162,12 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
     end
   end
 
+  describe ".fetch" do
+    it "returns nil for a nil hash" do
+      expect(described_class.fetch(nil, :items)).to be_nil
+    end
+  end
+
   describe ".item_with_elapsed" do
     let(:now) { Time.utc(2026, 6, 12, 10, 0, 2) }
 
