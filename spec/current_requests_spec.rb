@@ -1,70 +1,97 @@
 # frozen_string_literal: true
 
 RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
-  subject(:registry) { described_class.instance }
+  subject(:current_requests) { described_class }
+
+  def registry
+    current_requests.send(:instance)
+  end
+
+  def current_config
+    registry.instance_variable_get(:@config)
+  end
 
   let(:env) do
     {
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/",
       "QUERY_STRING" => "",
-      "REMOTE_ADDR" => "127.0.0.1"
+      "REMOTE_ADDR" => "127.0.0.1",
+      "action_dispatch.request_id" => "test-request-id"
     }
   end
 
   before do
-    registry.reset!
-    registry.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+    current_requests.reset!
+    current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
       configuration.request_limit = 2
     end
   end
 
+  it "exposes register and unregister as class methods" do
+    described_class.register env
+    expect(described_class.snapshot["items"].size).to eq(1)
+    described_class.unregister env
+    expect(described_class.snapshot["items"]).to be_empty
+  end
+
+  it "exposes config= as a class method" do
+    custom = Puma::Enhanced::Stats::Configuration.new.tap { |c| c.request_limit = 5 }
+    described_class.config = custom
+    expect(current_config.request_limit).to eq(5)
+  end
+
   it "registers and unregisters entries" do
-    id = registry.register(env)
-    expect(registry.snapshot["items"].size).to eq(1)
-    registry.unregister(id)
-    expect(registry.snapshot["items"]).to be_empty
+    current_requests.register env
+    expect(current_requests.snapshot["items"].size).to eq(1)
+    current_requests.unregister env
+    expect(current_requests.snapshot["items"]).to be_empty
   end
 
   it "evicts newest entry with keep_longest policy" do
-    registry.config.limit_policy = :keep_longest
+    current_config.limit_policy = :keep_longest
 
-    first = registry.register(env.merge("PATH_INFO" => "/first"))
-    sleep 0.01
-    second = registry.register(env.merge("PATH_INFO" => "/second"))
-    sleep 0.01
-    third = registry.register(env.merge("PATH_INFO" => "/third"))
+    first_env = env.merge("PATH_INFO" => "/first", "action_dispatch.request_id" => "req-1")
+    second_env = env.merge("PATH_INFO" => "/second", "action_dispatch.request_id" => "req-2")
+    third_env = env.merge("PATH_INFO" => "/third", "action_dispatch.request_id" => "req-3")
 
-    snapshot = registry.snapshot
+    current_requests.register first_env
+    sleep 0.01
+    current_requests.register second_env
+    sleep 0.01
+    current_requests.register third_env
+
+    snapshot = current_requests.snapshot
     paths = snapshot["items"].map { |item| item["path_info"] }
     expect(paths.none? { |path| path.end_with?("/second") })
     expect(snapshot["dropped_count"]).to eq(1)
     expect(paths.any? { |path| path.end_with?("/first") }).to be(true)
     expect(paths.any? { |path| path.end_with?("/third") }).to be(true)
-    registry.unregister(first)
-    registry.unregister(third)
+    current_requests.unregister first_env
+    current_requests.unregister third_env
   end
 
   it "rejects new entries when policy is reject_new" do
-    registry.config.limit_policy = :reject_new
+    current_config.limit_policy = :reject_new
 
-    2.times { registry.register(env) }
-    registry.register(env.merge("PATH_INFO" => "/rejected"))
+    current_requests.register env.merge("action_dispatch.request_id" => "req-1")
+    current_requests.register env.merge("action_dispatch.request_id" => "req-2")
+    current_requests.register env.merge("PATH_INFO" => "/rejected", "action_dispatch.request_id" => "req-3")
 
-    snapshot = registry.snapshot
+    snapshot = current_requests.snapshot
     expect(snapshot["items"].size).to eq(2)
     expect(snapshot["dropped_count"]).to eq(1)
   end
 
-  it "replaces duplicate request ids and increments dropped_count" do
+  it "overwrites duplicate request ids" do
     shared_id = "same-request-id"
-    registry.register env.merge("action_dispatch.request_id" => shared_id, "PATH_INFO" => "/first")
-    registry.register env.merge("action_dispatch.request_id" => shared_id, "PATH_INFO" => "/second")
+    current_requests.register env.merge("action_dispatch.request_id" => shared_id, "PATH_INFO" => "/first")
+    current_requests.register env.merge("action_dispatch.request_id" => shared_id, "PATH_INFO" => "/second")
 
-    snapshot = registry.snapshot
+    snapshot = current_requests.snapshot
     expect(snapshot["items"].size).to eq(1)
     expect(snapshot["items"].first["path_info"]).to end_with("/second")
-    expect(snapshot["dropped_count"]).to eq(1)
+    expect(snapshot["dropped_count"]).to eq(0)
   end
 
   it "registers another request while a slow extractor runs" do
@@ -75,16 +102,16 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
         env["PATH_INFO"]
       end
     end
-    registry.config = slow_config
+    current_requests.config = slow_config
 
     slow_thread = Thread.new do
-      registry.register env.merge("PATH_INFO" => "/slow")
+      current_requests.register env.merge("PATH_INFO" => "/slow", "action_dispatch.request_id" => "slow-req")
     end
     sleep 0.05
-    registry.register env.merge("PATH_INFO" => "/fast")
+    current_requests.register env.merge("PATH_INFO" => "/fast", "action_dispatch.request_id" => "fast-req")
     slow_thread.join
 
-    paths = registry.snapshot["items"].map { |item| item["path_info"] }
+    paths = current_requests.snapshot["items"].map { |item| item["path_info"] }
     expect(paths).to include("/fast", "/slow")
   end
 
@@ -92,7 +119,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     gate = Mutex.new
     cv = ConditionVariable.new
     state = { open: false }
-    registry.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+    current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
       configuration.request_limit = 1
       configuration.limit_policy = :reject_new
       configuration.register_fields :request, :gate do |env|
@@ -103,21 +130,18 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       end
     end
 
-    slow_result = nil
     slow = Thread.new do
-      slow_result = registry.register(env.merge("PATH_INFO" => "/slow"))
+      current_requests.register env.merge("PATH_INFO" => "/slow", "action_dispatch.request_id" => "slow-req")
     end
     sleep 0.05
-    accepted = registry.register(env.merge("PATH_INFO" => "/rejected"))
+    current_requests.register env.merge("PATH_INFO" => "/rejected", "action_dispatch.request_id" => "accepted-req")
     gate.synchronize do
       state[:open] = true
       cv.signal
     end
     slow.join
 
-    expect(accepted).not_to be_nil
-    expect(slow_result).to be_nil
-    snapshot = registry.snapshot
+    snapshot = current_requests.snapshot
     expect(snapshot["items"].size).to eq(1)
     expect(snapshot["items"].first["path_info"]).to end_with("/rejected")
     expect(snapshot["dropped_count"]).to eq(1)
@@ -125,30 +149,30 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
   describe "started_at" do
     it "uses HTTP_X_REQUEST_START when present" do
-      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234.567")
+      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234.567")
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
     end
 
     it "parses millisecond timestamps from HTTP_X_REQUEST_START" do
-      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234567")
+      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234567")
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
     end
 
     it "parses integer second timestamps from HTTP_X_REQUEST_START" do
-      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
+      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234).utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234).utc.iso8601(6))
     end
 
     it "falls back to the current time when HTTP_X_REQUEST_START is unparseable" do
       freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
       allow(Time).to receive(:now).and_return(freeze_time)
 
-      registry.register env.merge("HTTP_X_REQUEST_START" => "t=not-a-timestamp")
+      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=not-a-timestamp")
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
     end
 
     it "falls back to the current time when HTTP_X_REQUEST_START parsing raises" do
@@ -156,62 +180,27 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       allow(Time).to receive(:now).and_return(freeze_time)
       allow(Time).to receive(:at).and_raise(StandardError)
 
-      registry.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
+      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
     end
 
     it "falls back to the current time when the header is missing" do
       freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
       allow(Time).to receive(:now).and_return(freeze_time)
 
-      registry.register env
+      current_requests.register env
 
-      expect(registry.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
     end
   end
 
   describe "request id" do
-    it "uses action_dispatch.request_id when present" do
+    it "uses action_dispatch.request_id as the entry key" do
       rails_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-      registry.register env.merge("action_dispatch.request_id" => rails_id)
+      current_requests.register env.merge("action_dispatch.request_id" => rails_id)
 
-      expect(registry.snapshot["items"].first["id"]).to eq(rails_id)
-    end
-
-    it "uses HTTP_X_REQUEST_ID when Rails request id is absent" do
-      header_id = "client-supplied-id"
-      registry.register env.merge("HTTP_X_REQUEST_ID" => header_id)
-
-      expect(registry.snapshot["items"].first["id"]).to eq(header_id)
-    end
-
-    it "prefers action_dispatch.request_id over HTTP_X_REQUEST_ID" do
-      registry.register env.merge(
-        "action_dispatch.request_id" => "rails-id",
-        "HTTP_X_REQUEST_ID" => "client-id"
-      )
-
-      expect(registry.snapshot["items"].first["id"]).to eq("rails-id")
-    end
-
-    it "falls back to a random id when no request id is available" do
-      allow(SecureRandom).to receive(:hex).with(8).and_return("generatedid")
-
-      registry.register env
-
-      expect(registry.snapshot["items"].first["id"]).to eq("generatedid")
-    end
-
-    it "ignores blank request ids" do
-      allow(SecureRandom).to receive(:hex).with(8).and_return("generatedid")
-
-      registry.register env.merge(
-        "action_dispatch.request_id" => "  ",
-        "HTTP_X_REQUEST_ID" => ""
-      )
-
-      expect(registry.snapshot["items"].first["id"]).to eq("generatedid")
+      expect(current_requests.snapshot["items"].first["id"]).to eq(rails_id)
     end
   end
 
@@ -223,13 +212,14 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
         "QUERY_STRING" => "page=2",
         "REQUEST_URI" => "/reports?page=2",
         "REMOTE_ADDR" => "10.0.0.5",
+        "action_dispatch.request_id" => "full-env-request-id",
         "rack.session" => { "user_id" => "42" }
       }
     end
 
     it "builds flat request fields" do
-      registry.register full_env
-      entry = registry.snapshot["items"].first
+      current_requests.register full_env
+      entry = current_requests.snapshot["items"].first
 
       expect(entry).to include(
         "method" => "GET",
@@ -245,102 +235,149 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
         "REQUEST_METHOD" => "GET",
         "PATH_INFO" => "/items",
         "QUERY_STRING" => "sort=desc",
-        "REQUEST_URI" => "/ignored?sort=desc"
+        "REQUEST_URI" => "/ignored?sort=desc",
+        "action_dispatch.request_id" => "items-request-id"
       }
 
-      registry.register env
-      expect(registry.snapshot["items"].first["path_info"]).to eq("/items")
+      current_requests.register env
+      expect(current_requests.snapshot["items"].first["path_info"]).to eq("/items")
     end
 
     it "prefixes path_info with SCRIPT_NAME when the app is mounted" do
       env = {
         "REQUEST_METHOD" => "GET",
         "SCRIPT_NAME" => "/app",
-        "PATH_INFO" => "/items"
+        "PATH_INFO" => "/items",
+        "action_dispatch.request_id" => "mounted-request-id"
       }
 
-      registry.register env
-      expect(registry.snapshot["items"].first["path_info"]).to eq("/app/items")
+      current_requests.register env
+      expect(current_requests.snapshot["items"].first["path_info"]).to eq("/app/items")
     end
 
     it "includes session fields on the entry" do
-      registry.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+      current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
         configuration.register_fields :session, :user_id
       end
 
-      registry.register full_env
-      expect(registry.snapshot["items"].first["session"]).to eq("user_id" => "42")
+      current_requests.register full_env
+      expect(current_requests.snapshot["items"].first["session"]).to eq("user_id" => "42")
     end
 
     it "reads request fields from env via []" do
-      registry.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+      current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
         configuration.register_fields :request, :PATH_INFO
       end
 
-      registry.register full_env
-      expect(registry.snapshot["items"].first["PATH_INFO"]).to eq("/reports")
+      current_requests.register full_env
+      expect(current_requests.snapshot["items"].first["PATH_INFO"]).to eq("/reports")
     end
 
     it "allows request fields to override system defaults" do
-      registry.config = Puma::Enhanced::Stats::Configuration.new
-      Puma::Enhanced::Stats::DSL::Builder.new(registry.config).instance_eval do
+      current_requests.config = Puma::Enhanced::Stats::Configuration.new
+      Puma::Enhanced::Stats::DSL::Builder.new(current_config).instance_eval do
         request :id do |_e|
           "custom-id"
         end
       end
 
-      registry.register full_env
-      expect(registry.snapshot["items"].first["id"]).to eq("custom-id")
+      current_requests.register full_env
+      expect(current_requests.snapshot["items"].first["id"]).to eq("custom-id")
     end
   end
 
   describe "field truncation" do
     it "truncates values to max_field_length and marks snapshot truncated" do
-      registry.config.max_field_length = 5
-      registry.register env.merge("PATH_INFO" => "/very-long-path")
+      current_config.max_field_length = 5
+      current_requests.register env.merge("PATH_INFO" => "/very-long-path")
 
-      snapshot = registry.snapshot
+      snapshot = current_requests.snapshot
       item = snapshot["items"].first
-      expect(item["path_info"].bytesize).to be <= 5
+      expect(item["path_info"].length).to be <= 5
       expect(snapshot["truncated"]).to be(true)
     end
 
-    it "resets truncated after snapshot" do
-      registry.config.max_field_length = 5
-      registry.register env.merge("PATH_INFO" => "/very-long-path")
+    it "truncates multibyte strings by character length" do
+      current_config.max_field_length = 3
+      current_requests.register env.merge("PATH_INFO" => "café-long")
 
-      expect(registry.snapshot["truncated"]).to be(true)
-      expect(registry.snapshot["truncated"]).to be(false)
+      item = current_requests.snapshot["items"].first
+      expect(item["path_info"]).to eq("caf")
+      expect(item["path_info"].valid_encoding?).to be(true)
+    end
+
+    it "resets truncated after snapshot" do
+      current_config.max_field_length = 5
+      current_requests.register env.merge("PATH_INFO" => "/very-long-path")
+
+      expect(current_requests.snapshot["truncated"]).to be(true)
+      expect(current_requests.snapshot["truncated"]).to be(false)
     end
 
     it "clears truncated flag on reset" do
-      registry.config.max_field_length = 5
-      registry.register env.merge("PATH_INFO" => "/very-long-path")
-      expect(registry.snapshot["truncated"]).to be(true)
+      current_config.max_field_length = 5
+      current_requests.register env.merge("PATH_INFO" => "/very-long-path")
+      expect(current_requests.snapshot["truncated"]).to be(true)
 
-      registry.reset!
-      expect(registry.snapshot["truncated"]).to be(false)
+      current_requests.reset!
+      expect(current_requests.snapshot["truncated"]).to be(false)
+    end
+  end
+
+  describe "registration resilience" do
+    it "does not register when field extraction raises" do
+      current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+        configuration.register_fields :request, :boom do |_env|
+          raise "extractor failed"
+        end
+      end
+
+      current_requests.register env
+
+      expect(current_requests.snapshot["items"]).to be_empty
+    end
+
+    it "allows repeated unregister of the same request" do
+      current_requests.register env
+
+      current_requests.unregister env
+      current_requests.unregister env
+
+      expect(current_requests.snapshot["items"]).to be_empty
+    end
+
+    it "allows unregister when the request was not registered" do
+      expect { current_requests.unregister env.merge("action_dispatch.request_id" => "missing-request") }.not_to raise_error
+    end
+
+    it "does not raise when unregister fails internally" do
+      current_requests.register env
+      allow(registry.instance_variable_get(:@mutex)).to receive(:synchronize).and_raise(StandardError)
+
+      expect { current_requests.unregister(env) }.not_to raise_error
     end
   end
 
   describe "snapshot meta counters" do
     it "resets dropped_count after snapshot" do
-      registry.config.limit_policy = :reject_new
-      2.times { registry.register(env) }
-      registry.register env.merge("PATH_INFO" => "/rejected")
+      current_config.limit_policy = :reject_new
+      current_requests.register env.merge("action_dispatch.request_id" => "req-1")
+      current_requests.register env.merge("action_dispatch.request_id" => "req-2")
+      current_requests.register env.merge("PATH_INFO" => "/rejected", "action_dispatch.request_id" => "req-3")
 
-      expect(registry.snapshot["dropped_count"]).to eq(1)
-      expect(registry.snapshot["dropped_count"]).to eq(0)
+      expect(current_requests.snapshot["dropped_count"]).to eq(1)
+      expect(current_requests.snapshot["dropped_count"]).to eq(0)
     end
   end
 
   describe "private eviction helpers" do
     it "no-ops keep_longest eviction when policy is reject_new" do
-      registry.config.limit_policy = :reject_new
-      2.times { registry.register(env) }
+      current_config.limit_policy = :reject_new
+      current_requests.register env.merge("action_dispatch.request_id" => "req-1")
+      current_requests.register env.merge("action_dispatch.request_id" => "req-2")
 
       expect { registry.send(:evict_when_full_keep_longest!) }
-        .not_to change { registry.snapshot["items"].size }
+        .not_to change { current_requests.snapshot["items"].size }
     end
 
     it "no-ops newest eviction when the registry is empty" do

@@ -3,16 +3,18 @@
 module Puma
   module Enhanced
     module Stats
-      # Rails integration for enhanced stats.
+      # Rails integration for enhanced stats middleware.
       #
-      # Inserts {RequestStartMiddleware} as the outermost layer and appends
-      # {RequestsMiddleware} as the innermost Rack layer (closest to the router).
-      # Session middleware runs earlier on the request path, so +rack.session+
-      # remains available for session field extractors.
+      # Inserts {RequestStartMiddleware} as the outermost layer so
+      # +HTTP_X_REQUEST_START+ is set before any other middleware runs.
+      # Appends {RequestsMiddleware} as the innermost layer (closest to the
+      # router) so +rack.session+ is available for session field extractors.
       #
-      # @see RequestStartMiddleware
-      # @see RequestsMiddleware
-      # @see Configuration#register_fields
+      # @example Middleware order (simplified)
+      #   RequestStartMiddleware   # outermost
+      #   ... session, cookies, etc.
+      #   RequestsMiddleware       # innermost
+      #   Rails router
       class Railtie < Rails::Railtie
         initializer "puma_enhanced_stats.middleware" do |app|
           app.middleware.insert_before 0, RequestStartMiddleware

@@ -17,9 +17,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     )
   end
 
-  it "validates sync_interval and max_field_length in setters" do
-    expect { config.sync_interval = 0 }.to raise_error Puma::Enhanced::Stats::Error, /sync_interval/
-
+  it "validates max_field_length in setters" do
     expect { config.max_field_length = 0 }.to raise_error Puma::Enhanced::Stats::Error, /max_field_length/
   end
 
@@ -38,14 +36,15 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/",
       "QUERY_STRING" => "",
-      "REMOTE_ADDR" => "1.1.1.1"
+      "REMOTE_ADDR" => "1.1.1.1",
+      "action_dispatch.request_id" => "config-override-request"
     }
-    registry = Puma::Enhanced::Stats::CurrentRequests.instance
-    registry.reset!
-    registry.config = config
-    registry.register env
+    current_requests = Puma::Enhanced::Stats::CurrentRequests
+    current_requests.reset!
+    current_requests.config = config
+    current_requests.register env
 
-    expect(registry.snapshot["items"].first["method"]).to eq "OVERRIDE"
+    expect(current_requests.snapshot["items"].first["method"]).to eq "OVERRIDE"
   end
 
   it "reads request fields from env via [] when no block is given" do
@@ -57,14 +56,15 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/reports",
       "QUERY_STRING" => "",
-      "REMOTE_ADDR" => "1.1.1.1"
+      "REMOTE_ADDR" => "1.1.1.1",
+      "action_dispatch.request_id" => "config-path-info-request"
     }
-    registry = Puma::Enhanced::Stats::CurrentRequests.instance
-    registry.reset!
-    registry.config = config
-    registry.register env
+    current_requests = Puma::Enhanced::Stats::CurrentRequests
+    current_requests.reset!
+    current_requests.config = config
+    current_requests.register env
 
-    expect(registry.snapshot["items"].first["PATH_INFO"]).to eq "/reports"
+    expect(current_requests.snapshot["items"].first["PATH_INFO"]).to eq "/reports"
   end
 
   it "allows custom request fields with a block" do

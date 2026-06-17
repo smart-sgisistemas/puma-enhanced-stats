@@ -11,11 +11,6 @@ module Puma
         module Format
           module_function
 
-          # Truncates text with an ellipsis when it exceeds +max_width+.
-          #
-          # @param text [Object]
-          # @param max_width [Integer]
-          # @return [String]
           def truncate text, max_width
             string = text.to_s
             return string if string.length <= max_width
@@ -25,12 +20,8 @@ module Puma
             "#{string[0, max_width - 1]}…"
           end
 
-          # Formats byte counts as B/KiB/MiB/GiB.
-          #
-          # @param size [Integer, nil]
-          # @return [String]
           def bytes size
-            return "n/a" if size.nil?
+            return "n/a" unless size.is_a?(Integer)
 
             size = size.to_i
             if size >= 1_073_741_824
@@ -44,12 +35,8 @@ module Puma
             end
           end
 
-          # Formats elapsed milliseconds as seconds or minutes.
-          #
-          # @param ms [Integer, nil]
-          # @return [String]
           def elapsed_ms ms
-            return "n/a" if ms.nil?
+            return "n/a" unless ms.is_a?(Integer)
 
             seconds = ms.to_f / 1000
             return format("%.1fs", seconds) if seconds < 60
@@ -57,13 +44,8 @@ module Puma
             format("%.1fm", seconds / 60)
           end
 
-          # Relative time since an ISO8601 timestamp.
-          #
-          # @param iso8601 [String, nil]
-          # @param now [Time]
-          # @return [String]
           def rel_time iso8601, now: Time.now
-            return "never" if iso8601.nil? || iso8601.to_s.empty?
+            return "never" if iso8601.to_s.empty?
 
             started = Time.iso8601 iso8601.to_s
             delta = (now - started).to_i
@@ -74,26 +56,14 @@ module Puma
             "n/a"
           end
 
-          # @return [String] local hostname or +"localhost"+
           def hostname
             Socket.gethostname
           rescue StandardError
             "localhost"
           end
 
-          # Left-justifies columns and joins with double spaces.
-          #
-          # @param columns [Array]
-          # @param widths [Array<Integer>]
-          # @return [String]
-          def table_row columns, widths
-            columns.each_with_index.map { |value, index| value.to_s.ljust(widths[index]) }.join "  "
-          end
+          def table_row(columns, widths) = columns.each_with_index.map { |value, index| value.to_s.ljust(widths[index]) }.join("  ")
 
-          # Computes per-column max width from one or more rows.
-          #
-          # @param rows [Array<Array>]
-          # @return [Array<Integer>]
           def column_widths rows
             widths = []
             rows.each do |row|
@@ -102,16 +72,6 @@ module Puma
               end
             end
             widths
-          end
-
-          # Truncates content to fit inside a {Box} inner line.
-          #
-          # @param content [String]
-          # @param width [Integer] outer box width
-          # @return [String]
-          def pad_line content, width
-            inner = width - 4
-            truncate content, inner
           end
         end
       end

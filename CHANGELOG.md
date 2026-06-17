@@ -1,10 +1,29 @@
 # Changelog
 
+## 0.3.0 — 2026-06-17
+
+### Added
+
+- CLI auto-discovers control connection from `config/puma.rb` via `ControlDiscovery` (same model as `pumactl`; state file overrides URL, token, and master PID when configured)
+- `--request-only` — minimal dashboard with worker summary and in-flight requests only
+- `WorkerList`, `RequestOnlyRenderer`, and YARD documentation for CLI classes
+
+### Changed
+
+- **Breaking:** removed `sync_interval` from `enhanced_stats` DSL; use Puma `worker_check_interval` in `config/puma.rb`
+- **Breaking:** JSON `meta.sync_interval_seconds` renamed to `meta.worker_check_interval_seconds`
+- **Breaking:** CLI connection flags removed (`-S`/`--state`, `-C`/`--control-url`, `--url`, `-T`/`--token`); run from the app directory or ensure `config/puma.rb` is loadable
+- CLI **SYSTEM** and **PROCESSES** blocks shown by default; `-T` / `--no-top` hides them
+- CLI `-C` is now `--no-color`; `-w` / `--width` sets terminal width; `--watch` enables auto-refresh
+- Removed `PumaCompat` (Puma >= 8 only); worker pings use `Puma::Const::PipeRequest::PIPE_PING` directly
+- Removed unused `BodyProxy`
+- CLI internals simplified (renderers, `WorkerList`, endless methods, layout budget)
+
 ## 0.2.1 — 2026-06-16
 
 ### Changed
 
-- README: dedicated **CLI** section with layout explanation, `PROCESSES (--top)` description, and terminal output examples (cluster wide, narrow overflow, compact grid, single mode, special states)
+- README: dedicated **CLI** section with layout explanation and terminal output examples
 
 ## 0.2.0 — 2026-06-16
 

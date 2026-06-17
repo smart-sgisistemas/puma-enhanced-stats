@@ -11,7 +11,6 @@ module Puma
 
         attr_reader request_limit: Integer
         attr_reader limit_policy: Symbol
-        attr_reader sync_interval: Integer
         attr_reader max_field_length: Integer
         attr_reader fields: { request: Hash[String, Field], session: Hash[String, Field] }
 
@@ -22,7 +21,6 @@ module Puma
         def register_fields: (Symbol | String namespace, *Symbol | String name) ?{ (Hash[untyped, untyped] source) -> untyped } -> void
         def request_limit=: (Integer | String value) -> Integer
         def limit_policy=: (Symbol | String value) -> Symbol
-        def sync_interval=: (Integer | String value) -> Integer
         def max_field_length=: (Integer | String value) -> Integer
       end
 
@@ -37,10 +35,15 @@ module Puma
       class CurrentRequests
         include Singleton
 
-        attr_accessor config: Configuration
+        def self.reset!: () -> void
+        def self.register: (Hash[untyped, untyped] env) -> void
+        def self.unregister: (Hash[untyped, untyped] env) -> void
+        def self.config=: (Configuration value) -> Configuration
+        def self.snapshot: () -> Hash[String, untyped]
 
-        def register: (Hash[untyped, untyped] env) -> String?
-        def unregister: (String id) -> void
+        def config=: (Configuration value) -> Configuration
+        def register: (Hash[untyped, untyped] env) -> void
+        def unregister: (Hash[untyped, untyped] env) -> void
         def reset!: () -> void
         def snapshot: () -> Hash[String, untyped]
       end
@@ -51,14 +54,8 @@ module Puma
       end
 
       class RequestsMiddleware
-        def initialize: (#call app, ?registry: CurrentRequests) -> void
+        def initialize: (#call app) -> void
         def call: (Hash[untyped, untyped] env) -> Array[untyped]
-      end
-
-      class BodyProxy
-        def initialize: (untyped body) { () -> void } -> void
-        def each: (?Proc) -> untyped
-        def close: () -> void
       end
 
       class ProcessMetrics
@@ -99,7 +96,6 @@ module Puma
           def initialize: (Configuration configuration) -> void
           def request_limit: (Integer | String value) -> Integer
           def limit_policy: (Symbol | String value) -> Symbol
-          def sync_interval: (Integer | String value) -> Integer
           def max_field_length: (Integer | String value) -> Integer
           def request: (*Symbol | String name) ?{ (Hash[untyped, untyped] env) -> untyped } -> void
           def session: (*Symbol | String name) ?{ (Hash[untyped, untyped] rack_session) -> untyped } -> void
@@ -113,18 +109,15 @@ module Puma
         class Options
           attr_accessor no_color: bool
           attr_accessor watch: bool
-          attr_accessor top: bool
+          attr_accessor no_top: bool
           attr_accessor json: bool
           attr_accessor compact: bool
           attr_accessor width: Integer?
           attr_accessor worker: Integer?
           attr_accessor sort: String
+          attr_accessor request_only: bool
 
-          def watch?: () -> bool
           def top?: () -> bool
-          def json?: () -> bool
-          def compact?: () -> bool
-          def no_color?: () -> bool
         end
 
         class Runner
@@ -138,8 +131,6 @@ module Puma
 
         class Terminal
           def self.size: () -> [Integer, Integer]
-          def self.cols: (?Options? options) -> Integer
-          def self.rows: () -> Integer
           def self.tty?: () -> bool
           def self.clear: () -> void
           def self.trap_winch!: () -> void

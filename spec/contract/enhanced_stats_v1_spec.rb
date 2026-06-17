@@ -19,7 +19,7 @@ RSpec.describe "enhanced-stats-v1 schema" do
   it "validates Snapshot.build output for single mode" do
     launcher = instance_double(
       "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new }),
+      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
       stats_hash: {
         backlog: 0,
         running: 0,
@@ -30,7 +30,7 @@ RSpec.describe "enhanced-stats-v1 schema" do
       }
     )
 
-    Puma::Enhanced::Stats::CurrentRequests.instance.reset!
+    Puma::Enhanced::Stats::CurrentRequests.reset!
 
     payload = Puma::Enhanced::Stats::Snapshot.build(launcher)
     expect(schema.validate(payload).to_a).to be_empty

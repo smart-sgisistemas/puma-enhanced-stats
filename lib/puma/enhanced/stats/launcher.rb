@@ -3,50 +3,40 @@
 module Puma
   module Enhanced
     module Stats
-      # Publishes +options[:enhanced_stats]+ (or {Configuration.default}) on
-      # {CurrentRequests#config=} before {Puma::Launcher#run}.
+      # Prepends boot logic onto {Puma::Launcher}.
       #
-      # In cluster mode, registers a +before_worker_boot+ hook that clears the
-      # registry when a worker process starts, and sets +worker_check_interval+
-      # from {Configuration#sync_interval}.
+      # Before calling +super+, assigns +options[:enhanced_stats]+ (or
+      # {Configuration.default}) to {CurrentRequests}. In cluster mode, also
+      # registers a +before_worker_boot+ hook that calls {CurrentRequests.reset!}
+      # so forked workers start with an empty registry.
       #
-      # @see CurrentRequests
+      # @example Cluster boot sequence
+      #   launcher.run
+      #   # => CurrentRequests.config = enhanced_config
+      #   # => before_worker_boot { CurrentRequests.reset! }
       module Launcher
-        # Cluster worker handles from the Puma runner, when clustered.
+        # Returns cluster worker handles, or +nil+ in single mode.
+        #
+        # Used by {Snapshot} to read per-worker +enhanced_stats+ from handles.
         #
         # @return [Array<Puma::Cluster::WorkerHandle>, nil]
         def workers = (@runner.workers if clustered?)
 
-        # Assigns registry configuration, applies +worker_check_interval+ from
-        # +sync_interval+ when clustered, and starts the Puma launcher.
-        #
-        # @return [void]
+        # Publishes configuration and cluster hooks, then starts Puma.
         def run
           enhanced_config = config.options[:enhanced_stats] || Configuration.default
 
           if clustered?
-            config.options[:worker_check_interval] = enhanced_config.sync_interval
-
             config.configure do |_, _, default|
-              register_worker_boot_hook default do
-                CurrentRequests.instance.reset!
+              default.before_worker_boot do
+                CurrentRequests.reset!
               end
             end
           end
 
-          CurrentRequests.instance.config = enhanced_config
+          CurrentRequests.config = enhanced_config
 
           super
-        end
-
-        private
-
-        def register_worker_boot_hook dsl, &block
-          if dsl.respond_to? :before_worker_boot
-            dsl.before_worker_boot(&block)
-          else
-            dsl.on_worker_boot(&block)
-          end
         end
       end
     end

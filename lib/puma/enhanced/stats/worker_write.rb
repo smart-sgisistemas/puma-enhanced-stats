@@ -5,54 +5,60 @@ require "json"
 module Puma
   module Enhanced
     module Stats
-      # Prepends {WorkerWrite} on the worker-to-master pipe so ping messages
-      # carry enhanced stats.
+      # Prepends worker pipe setup to inject enhanced stats into cluster pings.
       #
-      # @see WorkerWrite
-      # @see WorkerHandle#ping!
+      # Replaces +pipes[:worker_write]+ with a {WorkerWrite} decorator before
+      # the worker process boots, so every PIPE_PING message to the master
+      # carries a +_enhanced_stats+ payload.
       module ClusterWorker
-        # Wraps +pipes[:worker_write]+ with {WorkerWrite} before boot.
-        #
-        # @param index [Integer] worker index
-        # @param master [IO] master process pipe
-        # @param launcher [Puma::Launcher] parent launcher
-        # @param pipes [Hash{Symbol => IO}] cluster IPC pipes
-        # @param kwargs [Hash] remaining arguments forwarded to Puma
-        # @return [void]
+        # Wraps the worker-to-master pipe with {WorkerWrite}.
         def initialize index:, master:, launcher:, pipes:, **kwargs
           super index: index, master: master, launcher: launcher, pipes: pipes.merge(worker_write: WorkerWrite.new(pipes[:worker_write])), **kwargs
         end
       end
 
-      # IO decorator that injects +_enhanced_stats+ into worker ping JSON.
+      # IO decorator that augments worker ping messages with enhanced stats.
       #
-      # Non-ping messages are passed through unchanged. When ping JSON cannot be
-      # parsed, the original message is forwarded.
+      # Puma cluster workers periodically send PIPE_PING messages to the master.
+      # This class intercepts those messages, merges +_enhanced_stats+ (from
+      # {CurrentRequests.snapshot} and {ProcessMetrics.read}), and forwards
+      # all other messages unchanged. On parse failure, the original message
+      # is passed through.
       #
-      # @see ClusterWorker
-      # @see WorkerHandle#ping!
+      # @example Ping payload after enhancement
+      #   {
+      #     "backlog" => 0,
+      #     "running" => 2,
+      #     "_enhanced_stats" => {
+      #       "items" => [...],
+      #       "dropped_count" => 0,
+      #       "truncated" => false,
+      #       "process" => { "rss_bytes" => ..., "cpu_percent" => ... }
+      #     }
+      #   }
       class WorkerWrite
         # @param io [IO] underlying worker-to-master pipe
-        # @return [void]
         def initialize(io) = @io = io
 
-        # Writes a message, enhancing worker pings with enhanced stats.
+        # Writes +message+, enhancing worker pings with +_enhanced_stats+.
         #
         # @param message [String]
-        # @return [void]
         def <<(message) = @io << ((ping? message) ? enhance_ping(message) : message)
 
         # Closes the underlying pipe.
-        #
-        # @return [void]
         def close = @io.close
 
         private
 
+        # Returns +true+ when +message+ is a Puma worker ping (PIPE_PING prefix).
         def ping? message
-          message.start_with? PumaCompat.pipe_ping_prefix
+          message.start_with? Puma::Const::PipeRequest::PIPE_PING
         end
 
+        # Parses the ping JSON, merges +_enhanced_stats+, and re-serializes.
+        #
+        # Supports both brace-delimited and legacy Puma ping formats.
+        # Returns the original +message+ on any parse or build error.
         def enhance_ping message
           json_start = message.index "{"
           if json_start
@@ -70,7 +76,8 @@ module Puma
           message
         end
 
-        def enhanced_stats_payload = CurrentRequests.instance.snapshot.merge("process" => ProcessMetrics.read)
+        # Builds the +_enhanced_stats+ object attached to each ping.
+        def enhanced_stats_payload = CurrentRequests.snapshot.merge("process" => ProcessMetrics.read)
       end
     end
   end

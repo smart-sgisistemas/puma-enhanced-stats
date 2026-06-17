@@ -3,44 +3,39 @@
 module Puma
   module Enhanced
     module Stats
-      # Named value extractor registered by {Configuration#register_fields}.
+      # Named value extractor for a single request or session field.
       #
-      # Each field has an output {#name} and an optional {#block}. At request
-      # entry, {CurrentRequests} calls {#extract} with +env+ (request
-      # fields) or +rack.session+ (session fields). String truncation happens
-      # later in the registry, not here.
+      # Instances are registered on {Configuration} via {#register_fields} or the
+      # DSL. At request entry, {CurrentRequests} calls {#extract} with the Rack
+      # +env+ (request fields) or +rack.session+ hash (session fields). String
+      # truncation is applied later in {CurrentRequests#sanitize_field}, not here.
       #
-      # Default request fields (+remote_ip+, +method+, +path_info+) are registered
-      # in {Configuration#initialize}.
+      # @example Lookup by env key
+      #   Field.new(name: "user_id") # reads source["user_id"]
       #
-      # @see Configuration#register_fields
-      # @see CurrentRequests
+      # @example Custom extractor
+      #   Field.new(name: "path") { |env| env["PATH_INFO"] }
       class Field
         # @!attribute [r] name
-        #   Key written on the in-flight entry (+session+ hash for session fields).
-        #   @return [String]
+        #   Output key on the in-flight entry (+session+ hash for session fields).
         # @!attribute [r] block
-        #   Optional extractor proc. When absent, {#extract} reads +source+ via +[]+.
-        #   @return [Proc, nil]
+        #   Optional proc; when absent, {#extract} reads +source+ via +[]+.
         attr_reader :name, :block
 
-        # @param name [Symbol, String]
-        # @param block [Proc, nil] receives +env+ or the session hash; omit to use
-        #   +source+ lookup
-        # @return [void]
+        # @param name [Symbol, String] field name written on the entry
+        # @param block [Proc, nil] receives +env+ or session hash; omit for lookup
         def initialize name:, block: nil
           @name = name.to_s
           @block = block
         end
 
-        # Extracts a raw value from +source+.
+        # Reads a raw value from +source+ without truncation.
         #
         # With a {#block}, calls it with +source+. Without a block, reads
-        # +source+ via +name+ (String or Symbol key).
+        # +source+ by {#name} (String or Symbol key).
         #
         # @param source [Hash] Rack +env+ or +rack.session+ hash
-        # @return [Object, nil] unsanitized value; truncation is applied by
-        #   {CurrentRequests}
+        # @return [Object, nil]
         def extract source
           if block
             block.call source

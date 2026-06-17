@@ -12,7 +12,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
   let(:colors) { Puma::Enhanced::Stats::CLI::Colors.new(options) }
   let(:bar) { Puma::Enhanced::Stats::CLI::Bar.new(colors) }
   let(:budget) { Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 100, options, worker_count: 1) }
-  let(:renderer) { described_class.new(options, colors, bar) }
+  let(:renderer) { described_class.new(options, bar) }
 
   it "renders header and summary sections" do
     header = renderer.render_header(payload, budget)
@@ -32,23 +32,23 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
       ]
     )
     filter_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.worker = 1 }
-    filter_renderer = described_class.new(filter_options, colors, bar)
+    filter_renderer = described_class.new(filter_options, bar)
     body = filter_renderer.render_body(workers_payload, budget)
 
     expect(body).to include("WORKER 1")
     expect(body).not_to include("WORKER 0 ─")
 
     sort_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "cpu" }
-    sort_renderer = described_class.new(sort_options, colors, bar)
+    sort_renderer = described_class.new(sort_options, bar)
     sorted = sort_renderer.render_body(workers_payload, budget)
 
     expect(sorted.index("WORKER 1")).to be < sorted.index("WORKER 0")
 
     rss_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "rss" }
-    expect(described_class.new(rss_options, colors, bar).render_body(workers_payload, budget)).to include("WORKER")
+    expect(described_class.new(rss_options, bar).render_body(workers_payload, budget)).to include("WORKER")
 
     backlog_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "backlog" }
-    expect(described_class.new(backlog_options, colors, bar).render_body(workers_payload, budget)).to include("WORKER")
+    expect(described_class.new(backlog_options, bar).render_body(workers_payload, budget)).to include("WORKER")
   end
 
   it "renders a compact worker grid and watch footer" do
@@ -64,7 +64,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
         payload["workers"].first.merge("index" => 1, "pid" => 99)
       ]
     )
-    compact_renderer = described_class.new(compact_options, colors, bar)
+    compact_renderer = described_class.new(compact_options, bar)
     body = compact_renderer.render_body(compact_payload, compact_budget, refresh_interval: 5)
 
     expect(body).to include("WORKERS")
@@ -148,7 +148,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
       "puma" => { "backlog" => 3, "running" => 0, "pool_capacity" => 0, "max_threads" => 0 },
       "process" => {}
     }
-    lines = renderer.send(:worker_metric_lines, worker, worker["puma"], worker["process"], 100)
+    lines = renderer.send(:worker_metric_lines, worker["puma"], worker["process"], 100, worker)
 
     expect(lines.join("\n")).to include("Backlog")
     expect(lines.join("\n")).to include("3")
@@ -161,7 +161,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
       "puma" => { "backlog" => 0, "running" => 0, "pool_capacity" => 0, "max_threads" => 0 },
       "process" => {}
     }
-    lines = renderer.send(:worker_metric_lines, worker, worker["puma"], worker["process"], 100)
+    lines = renderer.send(:worker_metric_lines, worker["puma"], worker["process"], 100, worker)
 
     expect(lines.join("\n")).to include("Backlog    0")
   end

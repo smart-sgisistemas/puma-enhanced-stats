@@ -2,11 +2,11 @@
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.2.1",
+    "gem_version": "0.3.0",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
-    "sync_interval_seconds": 5
+    "worker_check_interval_seconds": 5
   },
   "summary": {
     "workers_total": 1,

@@ -5,11 +5,9 @@ require_relative "stats/version"
 require_relative "stats/field"
 require_relative "stats/configuration"
 require_relative "stats/current_requests"
-require_relative "stats/body_proxy"
 require_relative "stats/request_start_middleware"
 require_relative "stats/requests_middleware"
 require_relative "stats/process_metrics"
-require_relative "stats/puma_compat"
 require_relative "stats/snapshot"
 require_relative "stats/status"
 require_relative "stats/worker_handle"
@@ -35,21 +33,26 @@ module Puma
     #
     # Require this file (via the gem entrypoint) to load the plugin. On require it:
     #
-    # 1. Loads components ({RequestsMiddleware}, control {Status} patch, …)
-    # 2. Prepends Puma classes and registers +enhanced-stats+ in {Puma::ControlCLI}
-    # 3. Registers {Railtie} to insert {RequestStartMiddleware} and append
-    #    {RequestsMiddleware} on the Rails middleware stack
+    # 1. Prepends {Stats::DSL}, {Stats::Launcher}, {Stats::Status},
+    #    {Stats::ClusterWorker}, and {Stats::WorkerHandle} onto Puma classes
+    # 2. Registers +enhanced-stats+ on {Puma::ControlCLI}
+    # 3. Loads {Stats::Railtie}, which inserts middleware on the Rails stack
     #
-    # When the server starts, {Launcher} publishes +options[:enhanced_stats]+
-    # (or {Configuration.default}) on {CurrentRequests#config=} before
-    # {Puma::Launcher#run}.
+    # At boot, {Stats::Launcher} assigns +options[:enhanced_stats]+ (or
+    # {Stats::Configuration.default}) to {Stats::CurrentRequests}. In-flight
+    # requests are tracked by {Stats::RequestsMiddleware}; snapshots are
+    # exposed via +GET /enhanced-stats+ and +pumactl enhanced-stats+.
     #
-    # @see Configuration
-    # @see DSL
+    # @example Fetch JSON from a running server
+    #   pumactl -S tmp/puma.state enhanced-stats
+    #
+    # @example Configure in puma.rb
+    #   enhanced_stats do
+    #     request_limit 100
+    #     session :user_id
+    #   end
     module Stats
-      # Raised for invalid configuration values or field registration.
-      #
-      # @see Configuration
+      # Raised when a configuration value or field registration is invalid.
       class Error < StandardError; end
 
       Puma::DSL.prepend DSL
@@ -60,15 +63,13 @@ module Puma
     end
   end
 
-  # Registers the +enhanced-stats+ command for {Puma::ControlCLI} and
-  # +pumactl enhanced-stats+.
+  # Extends {Puma::ControlCLI} with the +enhanced-stats+ command.
   #
-  # @see Puma::Enhanced::Stats::Status
+  # Enables +pumactl enhanced-stats+ and routes the control app to
+  # {Puma::Enhanced::Stats::Status}.
   class ControlCLI
     old_verbose, $VERBOSE = $VERBOSE, nil
-    # @return [Hash{String => String, nil}] control path map including +enhanced-stats+
     CMD_PATH_SIG_MAP = CMD_PATH_SIG_MAP.merge("enhanced-stats" => nil).freeze
-    # @return [Array<String>] printable control commands including +enhanced-stats+
     PRINTABLE_COMMANDS = (PRINTABLE_COMMANDS + ["enhanced-stats"]).freeze
   ensure
     $VERBOSE = old_verbose

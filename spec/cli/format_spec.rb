@@ -42,6 +42,5 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Format do
     expect(described_class.truncate("ab", 1)).to eq("")
     expect(described_class.table_row(%w[a bb], [3, 4])).to eq("a    bb  ")
     expect(described_class.column_widths([%w[ab c], %w[a longer]])).to eq([2, 6])
-    expect(described_class.pad_line("hello", 10)).to eq("hello")
   end
 end

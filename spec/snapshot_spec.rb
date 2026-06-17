@@ -21,7 +21,7 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
 
     instance_double(
       "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new }),
+      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
       stats_hash: stats
     )
   end
@@ -68,7 +68,7 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
   it "leaves synced_at null for cluster workers without enhanced stats" do
     launcher = instance_double(
       "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new }),
+      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
       stats_hash: {
         worker_status: [
           {
@@ -107,7 +107,7 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
   it "ignores workers on non-Puma launchers in cluster mode" do
     launcher = instance_double(
       "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new }),
+      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
       stats_hash: {
         worker_status: [
           {
@@ -129,7 +129,7 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
     let(:launcher) do
       instance_double(
         "Launcher",
-        config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new }),
+        config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
         stats_hash: {
           backlog: 0,
           running: 1,
@@ -142,13 +142,14 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
     end
 
     before do
-      registry = Puma::Enhanced::Stats::CurrentRequests.instance
-      registry.reset!
-      registry.register(
+      current_requests = Puma::Enhanced::Stats::CurrentRequests
+      current_requests.reset!
+      current_requests.register(
         "REQUEST_METHOD" => "GET",
         "PATH_INFO" => "/slow",
         "QUERY_STRING" => "",
-        "REMOTE_ADDR" => "127.0.0.1"
+        "REMOTE_ADDR" => "127.0.0.1",
+        "action_dispatch.request_id" => "snapshot-slow-request"
       )
     end
 

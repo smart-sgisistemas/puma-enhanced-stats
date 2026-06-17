@@ -15,7 +15,7 @@
         "puma_version",
         "ruby_version",
         "mode",
-        "sync_interval_seconds"
+        "worker_check_interval_seconds"
       ],
       "properties": {
         "collected_at": { "type": "string", "format": "date-time" },
@@ -23,7 +23,7 @@
         "puma_version": { "type": "string" },
         "ruby_version": { "type": "string" },
         "mode": { "type": "string", "enum": ["single", "cluster"] },
-        "sync_interval_seconds": { "type": "integer", "minimum": 1 }
+        "worker_check_interval_seconds": { "type": "integer", "minimum": 1 }
       }
     },
     "summary": {

@@ -6,17 +6,15 @@ module Puma
       module CLI
         # Reads host-level metrics from the local OS (Linux/macOS).
         #
-        # Used by {TopRenderer} for the SYSTEM block (+--top+). CPU percentages
-        # require two samples; call {HostMetrics.reset_cpu_sample!} before the first read in
-        # a watch session.
-        #
-        # @see TopRenderer
+        # Used by {TopRenderer} for the SYSTEM block. CPU percentages require
+        # two samples; call {.reset_cpu_sample!} before the first {.read} in a
+        # watch session so the first delta is meaningful.
         class HostMetrics
-          # Host metrics snapshot returned by {.read}.
           Snapshot = Struct.new :load, :cpu, :memory, :swap, keyword_init: true
           CPU = Struct.new :usr, :sys, :idle, :usage, keyword_init: true
           Usage = Struct.new :used, :total, :ratio, keyword_init: true
 
+          # Empty snapshot returned on unsupported platforms or error.
           EMPTY = Snapshot.new(
             load: nil,
             cpu: CPU.new(usr: nil, sys: nil, idle: nil, usage: nil),
@@ -43,10 +41,8 @@ module Puma
               EMPTY
             end
 
-            # @return [void]
-            def reset_cpu_sample!
-              self.previous_cpu = nil
-            end
+            # Clears the CPU baseline so the next {.read} starts a fresh delta.
+            def reset_cpu_sample! = self.previous_cpu = nil
 
             private
 
@@ -60,13 +56,11 @@ module Puma
               nil
             end
 
-            def read_cpu
-              linux? ? read_cpu_linux : read_cpu_darwin
-            end
+            def read_cpu = linux? ? read_cpu_linux : read_cpu_darwin
 
             def read_cpu_linux
               line = File.readlines("/proc/stat").find { |row| row.start_with? "cpu " }
-              return CPU.new if line.nil?
+              return CPU.new unless line
 
               parts = line.split[1..].map(&:to_f)
               total = parts.sum
@@ -86,7 +80,7 @@ module Puma
             def compute_cpu_delta sample
               previous = previous_cpu
               self.previous_cpu = sample
-              return CPU.new(usr: 0, sys: 0, idle: 100, usage: 0.0) if previous.nil?
+              return CPU.new(usr: 0, sys: 0, idle: 100, usage: 0.0) unless previous
 
               total_delta = sample[:total] - previous[:total]
               return CPU.new if total_delta <= 0

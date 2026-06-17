@@ -1,90 +1,105 @@
 # frozen_string_literal: true
 
-require "stringio"
-
 RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
-  let(:registry) { Puma::Enhanced::Stats::CurrentRequests.instance }
-  let(:env) { Rack::MockRequest.env_for("/", "REMOTE_ADDR" => "127.0.0.1") }
+  let(:current_requests) { Puma::Enhanced::Stats::CurrentRequests }
+  let(:env) do
+    Rack::MockRequest.env_for("/", "REMOTE_ADDR" => "127.0.0.1").merge(
+      "action_dispatch.request_id" => "middleware-request-id"
+    )
+  end
 
-  before { registry.reset! }
+  before do
+    current_requests.reset!
+    current_requests.config = Puma::Enhanced::Stats::Configuration.new
+  end
 
   it "cleans up after exceptions" do
     app = lambda do |_env|
       raise "boom"
     end
 
-    middleware = described_class.new(app, registry: registry)
+    middleware = described_class.new(app)
 
     expect { middleware.call(env) }.to raise_error("boom")
-    expect(registry.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot["items"]).to be_empty
   end
 
-  it "cleans up after body is consumed" do
+  it "unregisters when the app returns without waiting for the body" do
     app = ->(_env) { [200, {}, ["chunk"]] }
 
-    middleware = described_class.new(app, registry: registry)
+    middleware = described_class.new(app)
     _status, _headers, body = middleware.call(env)
-    expect(registry.snapshot["items"].size).to eq(1)
-    body.each { |_chunk| }
-    expect(registry.snapshot["items"]).to be_empty
+
+    expect(current_requests.snapshot["items"]).to be_empty
+    expect(body).to eq(["chunk"])
   end
 
   it "allows idempotent unregister" do
     app = ->(_env) { [200, {}, ["ok"]] }
-    middleware = described_class.new(app, registry: registry)
-    _status, _headers, body = middleware.call(env)
-    registry.unregister("missing")
-    body.each { |c| c }
-    expect { registry.unregister("missing") }.not_to raise_error
+    middleware = described_class.new(app)
+    middleware.call(env)
+
+    expect { current_requests.unregister env.merge("action_dispatch.request_id" => "missing-request") }.not_to raise_error
   end
 
   it "passes through when registry rejects a new entry" do
-    allow(registry).to receive(:register).and_return(nil)
-    expect(registry).not_to receive(:unregister)
+    allow(current_requests).to receive(:register)
 
     app = ->(_env) { [200, {}, ["ok"]] }
-    middleware = described_class.new(app, registry: registry)
+    middleware = described_class.new(app)
     status, = middleware.call(env)
 
     expect(status).to eq(200)
   end
 
-  it "cleans up after rack hijack" do
+  it "continues when register fails" do
+    current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+      configuration.register_fields :request, :boom do |_env|
+        raise "stats down"
+      end
+    end
+
+    app = ->(_env) { [200, {}, ["ok"]] }
+    status, _headers, body = described_class.new(app).call(env)
+
+    expect(status).to eq(200)
+    expect(body).to eq(["ok"])
+  end
+
+  it "unregisters when the app returns, including rack hijack" do
     app = lambda do |env|
       env["rack.hijack"] = proc { |io| io.close }
       [200, {}, []]
     end
     env["rack.hijack?"] = true
 
-    middleware = described_class.new(app, registry: registry)
-    _status, _headers, = middleware.call(env)
-    expect(registry.snapshot["items"].size).to eq(1)
+    middleware = described_class.new(app)
+    middleware.call(env)
 
-    env["rack.hijack"].call(StringIO.new)
-    expect(registry.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot["items"]).to be_empty
   end
 
-  it "passes through hijack when rack.hijack is not set" do
+  it "unregisters when hijack app call raises" do
+    app = lambda do |_env|
+      raise "hijack boom"
+    end
+    env["rack.hijack?"] = true
+
+    middleware = described_class.new(app)
+
+    expect { middleware.call(env) }.to raise_error("hijack boom")
+    expect(current_requests.snapshot["items"]).to be_empty
+  end
+
+  it "unregisters when hijack capable but rack.hijack is not set" do
     app = ->(_env) { [200, {}, []] }
     env["rack.hijack?"] = true
 
-    middleware = described_class.new(app, registry: registry)
+    middleware = described_class.new(app)
     status, _headers, body = middleware.call(env)
 
     expect(status).to eq(200)
     expect(body).to eq([])
-    expect(registry.snapshot["items"].size).to eq(1)
-  end
-
-  it "registers an after_reply callback when rack.after_reply is present" do
-    app = ->(_env) { [200, {}, ["ok"]] }
-    env["rack.after_reply"] = []
-
-    middleware = described_class.new(app, registry: registry)
-    _status, _headers, body = middleware.call(env)
-
-    expect(env["rack.after_reply"].size).to eq(1)
-    body.each { |chunk| chunk }
-    expect(registry.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot["items"]).to be_empty
   end
 end

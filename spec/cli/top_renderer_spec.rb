@@ -27,7 +27,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
   end
 
   it "renders deterministic SYSTEM and PROCESSES blocks" do
-    renderer = described_class.new(options, colors, bar, master_pid: 1234)
+    renderer = described_class.new(options, bar, master_pid: 1234)
     system = renderer.render_system(budget)
     processes = renderer.render_processes(payload, budget, refresh_interval: 5)
 
@@ -47,7 +47,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
       swap: Puma::Enhanced::Stats::CLI::HostMetrics::Usage.new(used: 128_000_000, total: 256_000_000, ratio: 0.5)
     )
     allow(Puma::Enhanced::Stats::CLI::HostMetrics).to receive(:read).and_return(swap_snapshot)
-    renderer = described_class.new(options, colors, bar, master_pid: nil)
+    renderer = described_class.new(options, bar, master_pid: nil)
     system = renderer.render_system(budget)
 
     expect(system).to include("Swap")
@@ -55,7 +55,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
     allow(Puma::Enhanced::Stats::CLI::HostMetrics).to receive(:read).and_return(
       Puma::Enhanced::Stats::CLI::HostMetrics::EMPTY
     )
-    empty_renderer = described_class.new(options, colors, bar, master_pid: nil)
+    empty_renderer = described_class.new(options, bar, master_pid: nil)
     system = empty_renderer.render_system(budget)
 
     expect(system).to include("Host metrics unavailable")
@@ -63,7 +63,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
 
   it "sorts process rows and enriches them from ps output" do
     sort_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "rss" }
-    renderer = described_class.new(sort_options, colors, bar, master_pid: 1234)
+    renderer = described_class.new(sort_options, bar, master_pid: 1234)
     allow(renderer).to receive(:`).with(/ps -o/).and_return("12345  10.0  1.2  1000\n9999  5.0  0.5  500\n")
 
     output = renderer.render_processes(payload, budget, refresh_interval: 5)
@@ -75,13 +75,11 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
   it "sorts process rows by cpu and backlog" do
     cpu_renderer = described_class.new(
       Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "cpu" },
-      colors,
       bar,
       master_pid: nil
     )
     backlog_renderer = described_class.new(
       Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "backlog" },
-      colors,
       bar,
       master_pid: nil
     )
@@ -91,7 +89,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
   end
 
   it "ignores ps failures when enriching process rows" do
-    renderer = described_class.new(options, colors, bar, master_pid: 1234)
+    renderer = described_class.new(options, bar, master_pid: 1234)
     allow(renderer).to receive(:`).with(/ps -o/).and_raise(StandardError)
 
     expect(renderer.render_processes(payload, budget, refresh_interval: 5)).to include("1234")
@@ -105,7 +103,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
       swap: nil
     )
     allow(Puma::Enhanced::Stats::CLI::HostMetrics).to receive(:read).and_return(partial_snapshot)
-    renderer = described_class.new(options, colors, bar, master_pid: nil)
+    renderer = described_class.new(options, bar, master_pid: nil)
     system = renderer.render_system(budget)
 
     expect(system).to include("Load")

@@ -6,58 +6,35 @@ module Puma
       module CLI
         # Parsed command-line flags for {Runner}.
         #
-        # Populated by {Runner#parse} from +OptionParser+. Connection flags mirror
-        # +pumactl+ (-S, -C, -T).
-        #
-        # @see Runner
+        # SYSTEM/PROCESSES blocks are shown by default; pass +--no-top+ to hide them.
         class Options
-          # @!attribute [rw] state_path
-          #   Path to the Puma state file (-S).
-          # @!attribute [rw] control_url
-          #   Control socket URL (-C), e.g. +tcp://127.0.0.1:9293+.
-          # @!attribute [rw] url
-          #   HTTP control URL (--url).
-          # @!attribute [rw] token
-          #   Control app auth token (-T).
           # @!attribute [rw] watch
-          #   Enable auto-refresh (-w / --watch).
-          # @!attribute [rw] top
-          #   Show SYSTEM and PROCESSES blocks (--top).
-          # @!attribute [rw] json_mode
-          #   Print raw JSON instead of the dashboard (--json).
+          #   When +true+, redraw on +worker_check_interval+ and handle SIGWINCH.
+          # @!attribute [rw] no_top
+          #   Hides SYSTEM and PROCESSES blocks.
+          # @!attribute [rw] json
+          #   Print raw JSON instead of the dashboard.
           # @!attribute [rw] no_color
-          #   Disable ANSI colors (--no-color).
+          #   Disable ANSI colors.
           # @!attribute [rw] worker
-          #   Filter a single worker index (--worker N).
+          #   Filter to a single worker index.
           # @!attribute [rw] compact
-          #   Use two-column worker grid (--compact).
+          #   Two-column worker grid (at most two workers, width &gt;= 120).
           # @!attribute [rw] sort
-          #   Sort key for workers and PROCESSES: +cpu+, +rss+, +backlog+, or +index+.
+          #   Sort key: +cpu+, +rss+, +backlog+, or +index+ (default).
           # @!attribute [rw] width
-          #   Fixed terminal width in columns (--width), for CI/tests.
-          attr_accessor :state_path, :control_url, :url, :token,
-                        :watch, :top, :json_mode, :no_color,
-                        :worker, :compact, :sort, :width
+          #   Fixed terminal width for tests/CI.
+          # @!attribute [rw] request_only
+          #   Minimal view: worker summary and in-flight requests only.
+          attr_accessor :watch, :no_top, :json, :no_color,
+                        :worker, :compact, :sort, :width, :request_only
 
-          # @return [void]
           def initialize
             @sort = "index"
           end
 
-          # @return [Boolean]
-          def json_mode? = @json_mode
-
-          # @return [Boolean]
-          def watch? = @watch
-
-          # @return [Boolean]
-          def top? = @top
-
-          # @return [Boolean]
-          def compact? = @compact
-
-          # @return [Boolean]
-          def no_color? = @no_color
+          # @return [Boolean] +false+ when +--no-top+ was passed
+          def top? = !@no_top
         end
       end
     end

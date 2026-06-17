@@ -1,11 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# Executable entry point for the terminal dashboard CLI.
-#
-# Installed as +puma-enhanced-stats+ when the gem is built ({Gem::Specification#executables}).
-#
-# @see Puma::Enhanced::Stats::CLI::Runner
+# Terminal dashboard for enhanced-stats JSON.
+# Installed as +puma-enhanced-stats+ when the gem is built.
 require "puma/enhanced/stats/cli"
 
 exit Puma::Enhanced::Stats::CLI::Runner.run(ARGV)

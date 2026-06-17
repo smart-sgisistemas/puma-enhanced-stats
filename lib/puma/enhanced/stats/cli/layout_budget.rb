@@ -4,13 +4,12 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Computes vertical and horizontal space for dashboard sections.
+        # Computes row and column budget for dashboard layout.
         #
-        # Reserves lines for HEADER, optional SYSTEM/PROCESSES/FOOTER, and divides
-        # remaining height among worker boxes and in-flight request rows.
-        #
-        # @see DashboardRenderer
-        # @see Runner#render_frame
+        # Reserves space for fixed sections (HEADER, SUMMARY, optional
+        # SYSTEM/PROCESSES/FOOTER) and divides the remainder among worker
+        # boxes and in-flight request rows. Unusable +--compact+ combinations
+        # append human-readable messages to {#warnings}.
         class LayoutBudget
           HEADER_LINES = 3
           SYSTEM_LINES = 6
@@ -20,16 +19,8 @@ module Puma
           WORKER_METRICS_LINES = 8
           WORKER_OVERHEAD = 4
 
-          # @return [Integer] terminal column count
-          # @return [Integer] terminal row count
-          # @return [Boolean] two-column worker grid enabled
-          # @return [Array<String>] layout fallback warnings shown above SUMMARY
           attr_reader :cols, :rows, :compact_grid, :warnings
 
-          # @param rows [Integer] terminal height
-          # @param cols [Integer] terminal width
-          # @param options [Options]
-          # @param worker_count [Integer] number of workers in the payload
           def initialize rows, cols, options, worker_count:
             @rows = rows
             @cols = cols
@@ -39,23 +30,16 @@ module Puma
             @compact_grid = compact_grid? worker_count
           end
 
-          # @return [Integer] row budget shared by all worker sections
           def available_for_workers
             reserved = HEADER_LINES + SUMMARY_LINES
             reserved += SYSTEM_LINES + PROCESSES_LINES if @options.top?
-            reserved += FOOTER_LINES if @options.watch?
+            reserved += FOOTER_LINES if @options.watch
             [@rows - reserved, WORKER_METRICS_LINES].max
           end
 
-          # @param label_cols [Integer] columns reserved for metric labels
-          # @return [Integer] bar width in characters
-          def bar_width label_cols: 22
-            [@cols - label_cols - 6, 8].max
-          end
+          def bar_width(label_cols: 22) = [@cols - label_cols - 6, 8].max
 
-          # @param items [Array<Hash>] in-flight request items for one worker
-          # @param overflow_fields [Integer] nested overflow lines per request
-          # @return [Integer] max requests to render in the worker box
+          # @param overflow_fields [Integer] nested overflow lines per request row
           def max_requests_for_worker items, overflow_fields: 0
             budget = (available_for_workers / @worker_count) - WORKER_OVERHEAD
             budget = [budget, 3].max
@@ -63,17 +47,12 @@ module Puma
             [budget / per_request, items.size].min
           end
 
-          # @return [Integer] inner width for worker content (half width in compact grid)
-          def worker_inner_width
-            return (@cols - 3) / 2 if @compact_grid
-
-            @cols
-          end
+          def worker_inner_width = @compact_grid ? (@cols - 3) / 2 : @cols
 
           private
 
           def compact_grid? worker_count
-            return false unless @options.compact?
+            return false unless @options.compact
 
             if worker_count > 2
               @warnings << "--compact supports at most 2 workers; using stacked layout"

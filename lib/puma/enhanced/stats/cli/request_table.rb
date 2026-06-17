@@ -4,34 +4,20 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Renders in-flight request tables with dynamic columns and nested overflow.
+        # Renders the in-flight request table inside a worker box.
         #
-        # Fits as many fields as possible in a flat row; remaining fields render as
-        # indented +└ field: value+ lines below each request.
-        #
-        # @see DashboardRenderer#render_worker
+        # Fits as many columns as the configured width allows; overflow fields
+        # appear as nested +└+ lines under each request row.
         class RequestTable
-          # JSON keys excluded from dynamic column discovery.
           RESERVED = %w[id started_at elapsed_ms session].freeze
-          # Preferred column order for built-in request fields.
           PRIMARY_ORDER = %w[elapsed_ms method path_info remote_ip].freeze
 
-          # @param items [Array<Hash>] +requests.items+ from a worker snapshot
-          # @param inner_width [Integer] available width inside the worker box
-          # @param colors [Colors] reserved for future colored cells
-          def initialize items, inner_width:, colors:
-            @items = items
-            @inner_width = inner_width
-            @colors = colors
-          end
+          def initialize(items, inner_width:) = (@items = items; @inner_width = inner_width)
 
-          # @param max_items [Integer] maximum requests to show (from {LayoutBudget})
-          # @return [Array<String>] table lines including header and overflow rows
           def render max_items:
             return ["No in-flight requests"] if @items.empty?
 
-            fields = discover_fields
-            primary, overflow = split_columns fields
+            primary, overflow = column_layout
             visible = @items.first max_items
             hidden_count = @items.size - visible.size
             lines = header_lines primary
@@ -40,14 +26,11 @@ module Puma
             lines
           end
 
-          # @return [Integer] number of fields that render as nested overflow lines
-          def overflow_field_count
-            fields = discover_fields
-            _, overflow = split_columns fields
-            overflow.size
-          end
+          def overflow_field_count = column_layout.last.size
 
           private
+
+          def column_layout = @column_layout ||= split_columns(discover_fields)
 
           def discover_fields
             request_fields = []
@@ -73,9 +56,7 @@ module Puma
               headers = trial_fields.map { |name| header_for name }
               rows = @items.map { |item| trial_fields.map { |name| cell_value item, name } }
               widths = Format.column_widths [headers] + rows
-              row_width = Format.table_row rows.first || headers, widths
-              row_width = row_width.length
-              break if row_width > @inner_width - 2
+              break if Format.table_row(rows.first || headers, widths).length > @inner_width - 2
 
               primary_fields = trial_fields
             end
@@ -117,8 +98,7 @@ module Puma
             if field == "elapsed_ms"
               Format.elapsed_ms item["elapsed_ms"]
             elsif field.start_with? "session."
-              key = field.split(".", 2).last
-              item.dig "session", key
+              item.dig "session", field.split(".", 2).last
             else
               item[field]
             end.to_s

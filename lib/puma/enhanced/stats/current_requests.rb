@@ -1,37 +1,56 @@
 # frozen_string_literal: true
 
-require "securerandom"
 require "singleton"
 
 module Puma
   module Enhanced
     module Stats
-      # Thread-safe store of in-flight requests for the current worker process.
+      # Thread-safe registry of in-flight HTTP requests for the current Puma worker.
       #
-      # {RequestsMiddleware} registers on entry; entries are built from {#config} fields
-      # and removed when the response body finishes. Configuration is set by
-      # {Launcher} from +options[:enhanced_stats]+ (or
-      # {Configuration.default}) and inherited by forked workers.
+      # Each worker process holds its own singleton. {RequestsMiddleware} calls
+      # {.register} when a request enters the Rails stack and {.unregister} when
+      # the app returns. {Launcher} assigns a {Configuration} via {.config=} at
+      # boot; cluster workers inherit it after fork.
       #
-      # @see RequestsMiddleware
-      # @see Launcher
-      # @see Configuration.default
+      # Entries are keyed by +env["action_dispatch.request_id"]+. Field values
+      # come from {Configuration#fields_for}. {.snapshot} is read by
+      # {WorkerWrite} (cluster pings) and {Snapshot} (single mode); it returns
+      # per-interval deltas for +dropped_count+ and +truncated+.
+      #
+      # The public API is entirely class methods; the instance is private.
+      #
+      # @example Register and read back
+      #   CurrentRequests.register env
+      #   CurrentRequests.snapshot # => { "items" => [...], "dropped_count" => 0, ... }
+      #   CurrentRequests.unregister env
       class CurrentRequests
         include Singleton
 
         class << self
-          # Clears the singleton (delegates to {#reset!}).
-          #
-          # @return [void]
+          private :instance
+
+          # Clears all entries and counters. Delegates to {#reset!}.
           def reset! = instance.reset!
+
+          # Registers +env+ as in-flight. Delegates to {#register}.
+          def register(env) = instance.register(env)
+
+          # Removes the entry for +env+. Delegates to {#unregister}.
+          def unregister(env) = instance.unregister(env)
+
+          # Replaces the active {Configuration}. Delegates to {#config=}.
+          def config=(value)
+            instance.config = value
+          end
+
+          # Returns the current registry snapshot. Delegates to {#snapshot}.
+          def snapshot = instance.snapshot
         end
 
-        # @!attribute [rw] config
-        #   Field extractors and limits applied when registering requests.
-        #   @return [Configuration]
-        attr_reader :config
+        # @!attribute [r] config
+        #   Active {Configuration}; set by {Launcher} or defaults to {Configuration.default}.
 
-        # @return [void]
+        # Builds an empty registry with default configuration.
         def initialize
           @mutex = Mutex.new
           @entries = {}
@@ -40,13 +59,17 @@ module Puma
           @config = Configuration.default
         end
 
+        # Replaces the active configuration under mutex.
+        #
         # @param value [Configuration]
-        # @return [Configuration]
         def config=(value)
           @mutex.synchronize { @config = value }
         end
 
-        # @return [void]
+        # Clears all in-flight entries and resets +dropped_count+ and +truncated+.
+        #
+        # Called from the cluster +before_worker_boot+ hook so a forked worker
+        # starts with an empty registry.
         def reset!
           @mutex.synchronize do
             @entries.clear
@@ -55,51 +78,60 @@ module Puma
           end
         end
 
-        # Registers a request from Rack +env+.
+        # Adds or updates an in-flight entry for +env+.
         #
-        # Entry +id+ prefers +env["action_dispatch.request_id"]+ (Rails), then
-        # +env["HTTP_X_REQUEST_ID"]+, then a random hex fallback. A duplicate
-        # +id+ replaces the previous entry and increments +dropped_count+.
+        # Uses +env["action_dispatch.request_id"]+ as the hash key. A duplicate
+        # id overwrites the previous entry. When the registry is full,
+        # {#reject_new_when_full?} or {#evict_when_full_keep_longest!} applies
+        # per {Configuration#limit_policy}.
+        #
+        # Field extraction runs outside the mutex; capacity is re-checked before
+        # insert. Swallows all errors so middleware never propagates failures.
         #
         # @param env [Hash] Rack environment
-        # @return [String, nil] entry id, or +nil+ when {#config} {#limit_policy}
-        #   is +:reject_new+ and the registry is full
         def register env
-          id = started_at = nil
-
           @mutex.synchronize do
-            return nil if reject_new_when_full?
+            return if reject_new_when_full?
 
             evict_when_full_keep_longest!
-
-            id = request_id_for env
-            drop_duplicate_id! id
-            started_at = started_at_for env
           end
 
-          entry, truncated = build_entry env, id: id, started_at: started_at
+          entry, truncated = build_entry env
 
           @mutex.synchronize do
-            return nil if reject_new_when_full?
+            return if reject_new_when_full?
 
             evict_when_full_keep_longest!
 
             @truncated = true if truncated
-            @entries[id] = entry
+            @entries[env["action_dispatch.request_id"]] = entry
           end
-
-          id
+        rescue StandardError
         end
 
-        # @param id [String] entry id returned by {#register}
-        # @return [void]
-        def unregister(id) = @mutex.synchronize { @entries.delete id }
-
-        # Returns current in-flight items and meta counters since the previous
-        # {#snapshot} (or process start). Resets +dropped_count+ and +truncated+
-        # after reading so each observation reports a delta for the sync interval.
+        # Removes the entry keyed by +env["action_dispatch.request_id"]+.
         #
-        # @return [Hash{String => Object}] +items+, +dropped_count+, +truncated+
+        # Safe to call multiple times or when the id was never registered.
+        # Swallows all errors so the middleware +ensure+ block never raises.
+        #
+        # @param env [Hash] Rack environment
+        def unregister env
+          @mutex.synchronize { @entries.delete env["action_dispatch.request_id"] }
+        rescue StandardError
+        end
+
+        # Returns the current registry state and interval counters.
+        #
+        # The returned hash contains:
+        #
+        # * +items+ — array of in-flight entry hashes
+        # * +dropped_count+ — registrations rejected or evicted since the last snapshot
+        # * +truncated+ — whether any field value was truncated since the last snapshot
+        #
+        # Resets +dropped_count+ and +truncated+ after reading so each worker ping
+        # reports a delta for the sync interval.
+        #
+        # @return [Hash{String => Object}]
         def snapshot
           @mutex.synchronize do
             result = {
@@ -115,32 +147,39 @@ module Puma
 
         private
 
+        # Returns +true+ when the registry has reached {Configuration#request_limit}.
+        def full? = @entries.size >= @config.request_limit
+
+        # When policy is +:reject_new+ and the registry is full, increments
+        # +dropped_count+ and returns +true+ so the caller skips registration.
         def reject_new_when_full?
-          return false unless @entries.size >= @config.request_limit
+          return false unless full?
           return false unless @config.limit_policy == :reject_new
 
           @dropped_count += 1
           true
         end
 
+        # When policy is +:keep_longest+ and the registry is full, evicts the
+        # newest entry and increments +dropped_count+ to make room.
         def evict_when_full_keep_longest!
-          return unless @entries.size >= @config.request_limit
+          return unless full?
           return unless @config.limit_policy == :keep_longest
 
           evict_newest!
           @dropped_count += 1
         end
 
-        def drop_duplicate_id! id
-          return unless @entries.key? id
-
-          @entries.delete id
-          @dropped_count += 1
-        end
-
-        def build_entry env, id:, started_at:
+        # Builds one snapshot entry from +env+, merging configured request and
+        # session fields.
+        #
+        # @return [Array(Hash, Boolean)] entry hash and whether any field was truncated
+        def build_entry env
           request_fields, request_truncated = build_fields env, namespace: :request
-          entry = { "id" => id, "started_at" => started_at.utc.iso8601(6) }.merge! request_fields
+          entry = {
+            "id" => env["action_dispatch.request_id"],
+            "started_at" => started_at_for(env).utc.iso8601(6)
+          }.merge! request_fields
 
           session_fields, session_truncated = build_fields env, namespace: :session
           entry["session"] = session_fields unless session_fields.empty?
@@ -148,6 +187,10 @@ module Puma
           [entry, request_truncated || session_truncated]
         end
 
+        # Extracts and sanitizes all fields for +namespace+.
+        #
+        # @param namespace [Symbol] +:request+ reads +env+; +:session+ reads +rack.session+
+        # @return [Array(Hash, Boolean)] field map and truncation flag
         def build_fields env, namespace:
           rack_session = env["rack.session"] || {}
           source = namespace == :request ? env : rack_session
@@ -164,23 +207,31 @@ module Puma
           [values, truncated]
         end
 
+        # Converts +value+ to a string and truncates to {Configuration#max_field_length}.
+        #
+        # @return [Array(Object, Boolean)] sanitized value and whether truncation occurred
         def sanitize_field value
-          return [nil, false] if value.nil?
+          return [nil, false] unless value
 
-          string = (value.is_a? String) ? value : value.to_s
-          if string.bytesize > @config.max_field_length
-            [string.byteslice(0, @config.max_field_length), true]
+          string = value.is_a?(String) ? value : value.to_s
+          if string.length > @config.max_field_length
+            [string[0, @config.max_field_length], true]
           else
             [string, false]
           end
         end
 
+        # Removes the most recently registered entry (last key in insertion order).
         def evict_newest!
           return if @entries.empty?
 
           @entries.delete @entries.keys.last
         end
 
+        # Derives request start time from +HTTP_X_REQUEST_START+ or falls back to now.
+        #
+        # Accepts nginx/Heroku +t=<unix>+ formats: float seconds, integer seconds,
+        # or millisecond timestamps (13+ digits).
         def started_at_for env
           header = env["HTTP_X_REQUEST_START"].to_s.strip
           return Time.now.utc if header.empty?
@@ -196,14 +247,6 @@ module Puma
           time&.utc || Time.now.utc
         rescue StandardError
           Time.now.utc
-        end
-
-        def request_id_for env
-          id = env["action_dispatch.request_id"] || env["HTTP_X_REQUEST_ID"]
-          id = id.to_s.strip
-          return id unless id.empty?
-
-          SecureRandom.hex 8
         end
       end
     end

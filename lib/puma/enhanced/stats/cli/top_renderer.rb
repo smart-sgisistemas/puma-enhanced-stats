@@ -8,28 +8,13 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Renders SYSTEM and PROCESSES blocks for +--top+.
+        # Renders SYSTEM and PROCESSES blocks (shown by default, hidden with +--no-top+).
         #
         # SYSTEM shows host load, CPU, memory, and swap via {HostMetrics}.
-        # PROCESSES lists worker (and optional master) PIDs with +ps+ enrichment.
-        #
-        # @see HostMetrics
-        # @see Runner#render_frame
+        # PROCESSES lists worker (and optional master) PIDs enriched with +ps+.
         class TopRenderer
-          # @param options [Options]
-          # @param colors [Colors]
-          # @param bar [Bar]
-          # @param master_pid [Integer, nil] master PID from {Fetcher#master_pid}
-          def initialize options, colors, bar, master_pid: nil
-            @options = options
-            @colors = colors
-            @bar = bar
-            @master_pid = master_pid
-            @host = HostMetrics.read
-          end
+          def initialize(options, bar, master_pid: nil) = (@options = options; @bar = bar; @master_pid = master_pid; @host = HostMetrics.read)
 
-          # @param budget [LayoutBudget]
-          # @return [String] SYSTEM box
           def render_system budget
             box = Box.new budget.cols
             lines = []
@@ -59,10 +44,6 @@ module Puma
             box.draw title: "SYSTEM ─ #{Format.hostname}", lines: lines
           end
 
-          # @param payload [Hash] enhanced-stats JSON
-          # @param budget [LayoutBudget]
-          # @param refresh_interval [Integer] seconds shown in the box subtitle
-          # @return [String] PROCESSES box
           def render_processes payload, budget, refresh_interval:
             workers = payload["workers"] || []
             rows = process_rows workers
@@ -77,7 +58,7 @@ module Puma
             widths = Format.column_widths [headers] + table_rows
             lines = [Format.table_row(headers, widths)]
             table_rows.each { |row| lines << Format.table_row(row, widths) }
-            title = "PROCESSES (--top) ─ sorted by #{@options.sort}"
+            title = "PROCESSES ─ sorted by #{@options.sort}"
             subtitle = "refresh #{refresh_interval}s"
             Box.new(budget.cols).draw title: "#{title} ─ #{subtitle}", lines: lines
           end

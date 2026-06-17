@@ -3,70 +3,35 @@
 module Puma
   module Enhanced
     module Stats
-      # Rack middleware that registers in-flight requests in
-      # {CurrentRequests} at entry and unregisters when the response
-      # body completes (or on hijack close).
+      # Innermost Rails middleware that tracks in-flight requests.
       #
-      # Inserted by {Railtie} as the innermost Rails middleware layer.
+      # Calls {CurrentRequests.register} before the app and
+      # {CurrentRequests.unregister} in an +ensure+ block so entries are removed
+      # when the Rails stack returns. Tracks time spent inside the app, not
+      # response body streaming after +@app.call+ returns.
       #
-      # @see CurrentRequests
+      # Registry errors are swallowed by {CurrentRequests} and never affect the
+      # HTTP response.
+      #
+      # @example Lifecycle per request
+      #   CurrentRequests.register env   # on entry
+      #   @app.call env                  # Rails handles the request
+      #   CurrentRequests.unregister env # always, via ensure
       class RequestsMiddleware
-        # @param app [#call] downstream Rack app
-        # @param registry [CurrentRequests]
-        # @return [void]
-        def initialize app, registry: CurrentRequests.instance
-          @app = app
-          @registry = registry
-        end
+        # @param app [#call] downstream Rack application
+        def initialize(app) = @app = app
 
-        # Registers the request, delegates to the app, and unregisters when the
-        # response body completes. On hijack, unregisters when the hijacked IO
-        # closes. When {CurrentRequests#register} returns +nil+
-        # (+:reject_new+ policy), passes through without tracking.
+        # Registers the request, runs the app, and unregisters in +ensure+.
         #
         # @param env [Hash] Rack environment
         # @return [Array] Rack response triplet
         def call env
-          id = @registry.register env
-          return @app.call env unless id
-
-          if env["rack.hijack?"]
-            return hijack_call env, id
-          end
-
           begin
-            status, headers, body = @app.call env
-            [status, headers, wrap_body(id, body, env)]
-          rescue
-            @registry.unregister id
-            raise
+            CurrentRequests.register env
+            @app.call env
+          ensure
+            CurrentRequests.unregister env
           end
-        end
-
-        private
-
-        def wrap_body id, body, env
-          callback = -> { @registry.unregister id }
-
-          if env["rack.after_reply"]
-            env["rack.after_reply"] << callback
-          end
-
-          BodyProxy.new body, &callback
-        end
-
-        def hijack_call env, id
-          status, headers, _body = @app.call env
-          if (original = env["rack.hijack"])
-            env["rack.hijack"] = proc do |io|
-              begin
-                original.call io
-              ensure
-                @registry.unregister id
-              end
-            end
-          end
-          [status, headers, []]
         end
       end
     end

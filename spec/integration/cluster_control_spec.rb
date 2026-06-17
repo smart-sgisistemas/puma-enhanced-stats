@@ -25,7 +25,7 @@ RSpec.describe "cluster mode control app", :integration do
 
   it "aggregates enhanced stats from workers via ping sync" do
     2.times { IntegrationServer.trigger_slow_request(@server[:app_port]) }
-    sleep Puma::Enhanced::Stats::Configuration.default.sync_interval + 4
+    sleep 6
 
     payload = IntegrationServer.fetch_enhanced_stats(
       control_port: @server[:control_port],
@@ -35,7 +35,7 @@ RSpec.describe "cluster mode control app", :integration do
     expect(payload["schema_version"]).to eq(1)
     expect(payload["meta"]["mode"]).to eq("cluster")
     expect(payload["workers"].size).to eq(2)
-    expect(payload["workers"].map { |w| w["synced_at"] }).to all(satisfy { |value| !value.nil? && !value.empty? })
+    expect(payload["workers"].map { |w| w["synced_at"] }).to all(satisfy { |value| value && !value.empty? })
     expect(payload["workers"].sum { |w| w.dig("puma", "requests_count") || 0 }).to be >= 1
 
     validate_schema(payload)

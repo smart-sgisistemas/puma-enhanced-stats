@@ -8,51 +8,39 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Fetches enhanced-stats JSON from the Puma control app over HTTP.
+        # Fetches enhanced-stats JSON from the Puma control app.
         #
-        # Resolves the control URL from {Options} and optional {StateFile} data,
-        # then performs +GET /enhanced-stats+ with token query param when configured.
-        #
-        # @see Runner
-        # @see StateFile
+        # Resolves connection settings via {ControlDiscovery} on initialize.
+        # Raises {Error} when the URL is missing, auth fails, or the response
+        # is not valid JSON.
         class Fetcher
-          # Raised when the control URL is invalid, auth fails, or the response is not JSON.
           class Error < StandardError; end
 
-          # @param options [Options] parsed CLI flags
-          def initialize options
-            @options = options
-            @state = options.state_path ? StateFile.load(options.state_path) : nil
-          end
-
-          # @return [Hash] parsed enhanced-stats JSON payload
-          # @raise [Error] on connection, HTTP, or parse failures
+          # @return [Hash] parsed enhanced-stats payload
           def fetch
             uri = build_uri
             response = Net::HTTP.get_response uri
             handle_response response
           end
 
-          # Master PID from the state file (-S), used by {TopRenderer} for PROCESSES.
-          #
-          # @return [Integer, nil]
-          def master_pid = @state&.master_pid
+          def initialize = @resolved = ControlDiscovery.resolve
+
+          # @return [Integer, nil] cluster master PID from the state file, if known
+          def master_pid = @resolved.master_pid
 
           private
 
           def build_uri
             base = http_base
-            token = resolve_token
+            token = @resolved.token
             path = base.path.end_with?("/") ? "#{base.path}enhanced-stats" : "#{base.path}/enhanced-stats"
             query = token && !token.empty? ? "?token=#{URI.encode_www_form_component(token)}" : ""
             URI "#{base.scheme}://#{base.host}:#{base.port}#{path}#{query}"
           end
 
-          def resolve_token = @options.token || @state&.token
-
           def http_base
-            raw = @options.url || @options.control_url || @state&.control_url
-            raise Error, "control URL required: use -S, -C, or --url" if raw.nil? || raw.empty?
+            raw = @resolved.control_url
+            raise Error, "control URL required: configure activate_control_app in config/puma.rb" if raw.to_s.empty?
 
             normalize_control_url raw
           end
@@ -76,7 +64,7 @@ module Puma
             when Net::HTTPSuccess
               JSON.parse response.body
             when Net::HTTPForbidden
-              raise Error, "authentication failed (403): check --token / -T"
+              raise Error, "authentication failed (403): check control app auth token in config/puma.rb"
             else
               raise Error, "enhanced-stats failed: HTTP #{response.code} #{response.body.to_s.strip}"
             end

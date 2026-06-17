@@ -8,7 +8,7 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
   end
 
   before do
-    Puma::Enhanced::Stats::CurrentRequests.instance.reset!
+    Puma::Enhanced::Stats::CurrentRequests.reset!
   end
 
   it "injects _enhanced_stats into ping messages with brace-delimited JSON" do
@@ -22,11 +22,12 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
   end
 
   it "injects _enhanced_stats into worker ping messages" do
-    Puma::Enhanced::Stats::CurrentRequests.instance.register(
+    Puma::Enhanced::Stats::CurrentRequests.register(
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/slow",
       "QUERY_STRING" => "",
-      "REMOTE_ADDR" => "127.0.0.1"
+      "REMOTE_ADDR" => "127.0.0.1",
+      "action_dispatch.request_id" => "worker-write-slow-request"
     )
 
     described_class.new(io) << ping_message

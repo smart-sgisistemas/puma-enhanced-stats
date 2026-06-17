@@ -5,45 +5,46 @@ require_relative "field"
 module Puma
   module Enhanced
     module Stats
-      # Limits and field extractors for enhanced stats.
+      # Holds limits and field extractors for enhanced stats.
       #
-      # Built by {DSL#enhanced_stats} in +puma.rb+, stored in
-      # +launcher.config.options[:enhanced_stats]+, and assigned to
-      # {CurrentRequests#config=} by {Launcher}.
-      # Omit the block to use {Configuration.default}.
+      # Built by {DSL#enhanced_stats} in +puma.rb+ and stored in
+      # +launcher.config.options[:enhanced_stats]+. {Launcher} copies the same
+      # object to {CurrentRequests} at boot. Omit the DSL block to use
+      # {Configuration.default}.
       #
-      # Registered fields live in {#fields}, keyed by +:request+ and +:session+.
+      # Built-in request fields (+method+, +remote_ip+, +path_info+) are
+      # registered in {#initialize}. Custom fields are added via
+      # {#register_fields} or the DSL +request+ / +session+ directives.
       #
-      # @see DSL
-      # @see Configuration.default
-      # @see CurrentRequests#config
+      # @example In puma.rb
+      #   enhanced_stats do
+      #     request_limit 50
+      #     limit_policy :reject_new
+      #     request :user_agent
+      #     session :user_id
+      #   end
       class Configuration
-        # @return [Array<Symbol>] allowed {#limit_policy} values
+        # Allowed values for {Configuration#limit_policy=}.
         LIMIT_POLICIES = %i[keep_longest reject_new].freeze
 
         # @!attribute [rw] request_limit
         #   Maximum in-flight requests tracked per worker.
         # @!attribute [rw] limit_policy
-        #   Policy applied when the in-flight registry is full.
-        # @!attribute [rw] sync_interval
-        #   Worker ping interval in seconds. In cluster mode, overrides Puma's
-        #   +worker_check_interval+. Also reported in snapshot +meta+.
+        #   +:keep_longest+ evicts the newest entry when full; +:reject_new+ drops new ones.
         # @!attribute [rw] max_field_length
-        #   Maximum byte length for extracted string values.
+        #   Maximum character length for extracted string values.
         # @!attribute [r] fields
-        #   {Field} maps keyed by namespace (+:request+, +:session+), then field name.
-        #   @return [Hash{Symbol => Hash{String => Field}}]
-        attr_reader :request_limit, :limit_policy, :sync_interval, :max_field_length, :fields
+        #   @return [Hash{Symbol => Hash{String => Field}}] namespaces +:request+ and +:session+
+        attr_reader :request_limit, :limit_policy, :max_field_length, :fields
 
         class << self
-          # @return [Configuration] shared defaults when +enhanced_stats+ is omitted
+          # Shared defaults used when +enhanced_stats+ is omitted from +puma.rb+.
+          #
+          # @return [Configuration]
           def default = @default ||= new
         end
 
-        # Initializes default limits and built-in request fields (+method+,
-        # +remote_ip+, +path_info+).
-        #
-        # @return [void]
+        # Registers built-in request fields and applies default limits.
         def initialize
           @fields = {
             request: {
@@ -55,14 +56,12 @@ module Puma
           }
           self.request_limit = 100
           self.limit_policy = :keep_longest
-          self.sync_interval = 5
           self.max_field_length = 256
         end
 
-        # Sets {#request_limit} after validating the value is a positive integer.
+        # Sets the maximum number of in-flight entries per worker.
         #
         # @param value [Integer, String, #to_int]
-        # @return [Integer]
         # @raise [Error] when +value+ is not a positive integer
         def request_limit= value
           request_limit = Integer value
@@ -71,11 +70,10 @@ module Puma
           @request_limit = request_limit
         end
 
-        # Sets {#limit_policy} after validating against {LIMIT_POLICIES}.
+        # Sets the policy applied when the registry reaches {#request_limit}.
         #
-        # @param value [Symbol, String]
-        # @return [Symbol]
-        # @raise [Error] when +value+ is not an allowed policy
+        # @param value [Symbol, String] +:keep_longest+ or +:reject_new+
+        # @raise [Error] when +value+ is not in {LIMIT_POLICIES}
         def limit_policy= value
           policy = value.to_sym
           raise Error, "invalid limit_policy #{value} (allowed: #{LIMIT_POLICIES.join(', ')})" unless LIMIT_POLICIES.include? policy
@@ -83,22 +81,9 @@ module Puma
           @limit_policy = policy
         end
 
-        # Sets {#sync_interval} after validating the value is a positive integer.
+        # Sets the maximum character length for string field values.
         #
         # @param value [Integer, String, #to_int]
-        # @return [Integer]
-        # @raise [Error] when +value+ is not a positive integer
-        def sync_interval= value
-          sync_interval = Integer value
-          raise Error, "sync_interval must be > 0" unless sync_interval.positive?
-
-          @sync_interval = sync_interval
-        end
-
-        # Sets {#max_field_length} after validating the value is a positive integer.
-        #
-        # @param value [Integer, String, #to_int]
-        # @return [Integer]
         # @raise [Error] when +value+ is not a positive integer
         def max_field_length= value
           max_field_length = Integer value
@@ -107,26 +92,26 @@ module Puma
           @max_field_length = max_field_length
         end
 
-        # Returns registered fields for a namespace in insertion order.
+        # Returns registered {Field} instances for a namespace in insertion order.
         #
         # @param namespace [Symbol] +:request+ or +:session+
         # @return [Array<Field>]
         # @raise [KeyError] when +namespace+ is unknown
         def fields_for(namespace) = @fields.fetch(namespace).values
 
-        # Registers or replaces {Field} instances for a namespace at request entry.
+        # Registers or replaces {Field} instances for a namespace.
         #
-        # +:request+ fields read from Rack +env+ (top-level keys on the entry).
-        # +:session+ fields read from +env["rack.session"]+ (nested under +session+).
+        # +:request+ fields are read from Rack +env+ and stored as top-level keys
+        # on each entry. +:session+ fields are read from +env["rack.session"]+ and
+        # stored under the +session+ key.
         #
-        # Without a block, {Field#extract} reads +source+ via +[]+. With a block,
-        # accepts exactly one name.
+        # Without a block, {Field#extract} looks up +source[name]+. With a block,
+        # exactly one name must be given and the block receives the source hash.
         #
         # @param namespace [Symbol, String] +:request+ or +:session+
-        # @param names [Array<Symbol, String>]
-        # @yield optional; block form accepts exactly one name
+        # @param names [Array<Symbol, String>] one or more field names
+        # @yield [source] optional extractor; block form accepts exactly one name
         # @yieldparam source [Hash] Rack +env+ or +rack.session+ hash
-        # @return [void]
         # @raise [Error] when a block is given with more than one name
         def register_fields namespace, *names, &block
           namespace = namespace.to_sym

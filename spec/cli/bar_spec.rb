@@ -29,12 +29,12 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Bar do
 end
 
 RSpec.describe Puma::Enhanced::Stats::CLI::Colors do
-  it "decorates text when colors are enabled" do
+  it "paints text when colors are enabled" do
     options = Puma::Enhanced::Stats::CLI::Options.new
     allow(Puma::Enhanced::Stats::CLI::Terminal).to receive(:tty?).and_return(true)
     colors = described_class.new(options)
 
-    expect(colors.decorate("ok")).to include("ok")
+    expect(colors.paint("ok")).to include("ok")
     expect(colors.level(0.75)).to eq(:warn)
   end
 end

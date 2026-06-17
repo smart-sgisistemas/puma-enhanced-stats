@@ -4,35 +4,17 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Aggregates worker +puma+ stats into SUMMARY lines with WARN/CRIT levels.
+        # Builds SUMMARY rows from aggregated worker +puma+ stats.
         #
-        # Consumes the top-level +summary+ block and per-worker +puma+ metrics from
-        # the enhanced-stats JSON contract.
-        #
-        # @see DashboardRenderer#render_summary
+        # Each {Line} carries a label, display value, optional bar ratio, and
+        # severity level (+:ok+, +:warn+, +:crit+).
         class SummaryAggregator
-          # One SUMMARY row: label, display value, optional bar ratio, and severity.
-          #
-          # @!attribute [r] label
-          #   @return [String]
-          # @!attribute [r] value
-          #   @return [String]
-          # @!attribute [r] ratio
-          #   @return [Float, nil] bar fill level for {Bar}
-          # @!attribute [r] level
-          #   @return [Symbol] +:ok+, +:warn+, or +:crit+
-          # @!attribute [r] backlog
-          #   @return [Boolean] use backlog bar styling
+          # One SUMMARY row.
           Line = Struct.new :label, :value, :ratio, :level, :backlog, keyword_init: true
 
-          # @param payload [Hash] full enhanced-stats JSON
-          def initialize payload
-            @payload = payload
-            @workers = payload["workers"] || []
-            @summary = payload["summary"] || {}
-          end
+          def initialize(payload) = (@payload = payload; @workers = payload["workers"] || []; @summary = payload["summary"] || {})
 
-          # @return [Array<Line>] ordered SUMMARY rows
+          # @return [Array<Line>]
           def lines
             reporting = @summary["workers_reporting"].to_i
             total = @summary["workers_total"].to_i
@@ -90,9 +72,7 @@ module Puma
 
           private
 
-          def sum_puma key
-            @workers.sum { |worker| worker.dig("puma", key.to_s).to_i }
-          end
+          def sum_puma(key) = @workers.sum { |worker| worker.dig("puma", key.to_s).to_i }
 
           def saturated_worker?
             @workers.any? do |worker|
