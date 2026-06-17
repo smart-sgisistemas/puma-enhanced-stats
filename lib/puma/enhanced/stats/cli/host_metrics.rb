@@ -10,8 +10,23 @@ module Puma
         # two samples; call {.reset_cpu_sample!} before the first {.read} in a
         # watch session so the first delta is meaningful.
         class HostMetrics
+          # Host metrics snapshot for the SYSTEM block.
+          #
+          # @!attribute load [Array<Float>, nil]
+          # @!attribute cpu [CPU, nil]
+          # @!attribute memory [Usage, nil]
+          # @!attribute swap [Usage, nil]
           Snapshot = Struct.new :load, :cpu, :memory, :swap, keyword_init: true
+
+          # @!attribute usr [Numeric, nil]
+          # @!attribute sys [Numeric, nil]
+          # @!attribute idle [Numeric, nil]
+          # @!attribute usage [Float, nil] aggregate utilization ratio
           CPU = Struct.new :usr, :sys, :idle, :usage, keyword_init: true
+
+          # @!attribute used [Integer, nil]
+          # @!attribute total [Integer, nil]
+          # @!attribute ratio [Float, nil]
           Usage = Struct.new :used, :total, :ratio, keyword_init: true
 
           # Empty snapshot returned on unsupported platforms or error.
@@ -42,6 +57,8 @@ module Puma
             end
 
             # Clears the CPU baseline so the next {.read} starts a fresh delta.
+            #
+            # @return [void]
             def reset_cpu_sample! = self.previous_cpu = nil
 
             private

@@ -30,9 +30,9 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
   it "exposes register and unregister as class methods" do
     described_class.register env
-    expect(described_class.snapshot["items"].size).to eq(1)
+    expect(described_class.snapshot[:items].size).to eq(1)
     described_class.unregister env
-    expect(described_class.snapshot["items"]).to be_empty
+    expect(described_class.snapshot[:items]).to be_empty
   end
 
   it "exposes config= as a class method" do
@@ -43,9 +43,9 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
   it "registers and unregisters entries" do
     current_requests.register env
-    expect(current_requests.snapshot["items"].size).to eq(1)
+    expect(current_requests.snapshot[:items].size).to eq(1)
     current_requests.unregister env
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
   end
 
   it "evicts newest entry with keep_longest policy" do
@@ -62,9 +62,9 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     current_requests.register third_env
 
     snapshot = current_requests.snapshot
-    paths = snapshot["items"].map { |item| item["path_info"] }
+    paths = snapshot[:items].map { |item| item[:path_info] }
     expect(paths.none? { |path| path.end_with?("/second") })
-    expect(snapshot["dropped_count"]).to eq(1)
+    expect(snapshot[:dropped_count]).to eq(1)
     expect(paths.any? { |path| path.end_with?("/first") }).to be(true)
     expect(paths.any? { |path| path.end_with?("/third") }).to be(true)
     current_requests.unregister first_env
@@ -79,8 +79,8 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     current_requests.register env.merge("PATH_INFO" => "/rejected", "action_dispatch.request_id" => "req-3")
 
     snapshot = current_requests.snapshot
-    expect(snapshot["items"].size).to eq(2)
-    expect(snapshot["dropped_count"]).to eq(1)
+    expect(snapshot[:items].size).to eq(2)
+    expect(snapshot[:dropped_count]).to eq(1)
   end
 
   it "overwrites duplicate request ids" do
@@ -89,9 +89,9 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     current_requests.register env.merge("action_dispatch.request_id" => shared_id, "PATH_INFO" => "/second")
 
     snapshot = current_requests.snapshot
-    expect(snapshot["items"].size).to eq(1)
-    expect(snapshot["items"].first["path_info"]).to end_with("/second")
-    expect(snapshot["dropped_count"]).to eq(0)
+    expect(snapshot[:items].size).to eq(1)
+    expect(snapshot[:items].first[:path_info]).to end_with("/second")
+    expect(snapshot[:dropped_count]).to eq(0)
   end
 
   it "registers another request while a slow extractor runs" do
@@ -111,7 +111,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     current_requests.register env.merge("PATH_INFO" => "/fast", "action_dispatch.request_id" => "fast-req")
     slow_thread.join
 
-    paths = current_requests.snapshot["items"].map { |item| item["path_info"] }
+    paths = current_requests.snapshot[:items].map { |item| item[:path_info] }
     expect(paths).to include("/fast", "/slow")
   end
 
@@ -142,28 +142,28 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     slow.join
 
     snapshot = current_requests.snapshot
-    expect(snapshot["items"].size).to eq(1)
-    expect(snapshot["items"].first["path_info"]).to end_with("/rejected")
-    expect(snapshot["dropped_count"]).to eq(1)
+    expect(snapshot[:items].size).to eq(1)
+    expect(snapshot[:items].first[:path_info]).to end_with("/rejected")
+    expect(snapshot[:dropped_count]).to eq(1)
   end
 
   describe "started_at" do
     it "uses HTTP_X_REQUEST_START when present" do
       current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234.567")
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234.567).utc.iso8601(6))
     end
 
     it "parses millisecond timestamps from HTTP_X_REQUEST_START" do
       current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234567")
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234.567).utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234.567).utc.iso8601(6))
     end
 
     it "parses integer second timestamps from HTTP_X_REQUEST_START" do
       current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(Time.at(1718381234).utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234).utc.iso8601(6))
     end
 
     it "falls back to the current time when HTTP_X_REQUEST_START is unparseable" do
@@ -172,7 +172,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
       current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=not-a-timestamp")
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(freeze_time.utc.iso8601(6))
     end
 
     it "falls back to the current time when HTTP_X_REQUEST_START parsing raises" do
@@ -182,7 +182,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
       current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(freeze_time.utc.iso8601(6))
     end
 
     it "falls back to the current time when the header is missing" do
@@ -191,7 +191,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
       current_requests.register env
 
-      expect(current_requests.snapshot["items"].first["started_at"]).to eq(freeze_time.utc.iso8601(6))
+      expect(current_requests.snapshot[:items].first[:started_at]).to eq(freeze_time.utc.iso8601(6))
     end
   end
 
@@ -200,7 +200,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       rails_id = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
       current_requests.register env.merge("action_dispatch.request_id" => rails_id)
 
-      expect(current_requests.snapshot["items"].first["id"]).to eq(rails_id)
+      expect(current_requests.snapshot[:items].first[:id]).to eq(rails_id)
     end
   end
 
@@ -213,21 +213,21 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
         "REQUEST_URI" => "/reports?page=2",
         "REMOTE_ADDR" => "10.0.0.5",
         "action_dispatch.request_id" => "full-env-request-id",
-        "rack.session" => { "user_id" => "42" }
+        "rack.session" => { user_id: "42" }
       }
     end
 
     it "builds flat request fields" do
       current_requests.register full_env
-      entry = current_requests.snapshot["items"].first
+      entry = current_requests.snapshot[:items].first
 
       expect(entry).to include(
-        "method" => "GET",
-        "remote_ip" => "10.0.0.5",
-        "path_info" => "/reports"
+        method: "GET",
+        remote_ip: "10.0.0.5",
+        path_info: "/reports"
       )
-      expect(entry["started_at"]).not_to be_nil
-      expect(entry["id"]).not_to be_nil
+      expect(entry[:started_at]).not_to be_nil
+      expect(entry[:id]).not_to be_nil
     end
 
     it "maps path_info from SCRIPT_NAME and PATH_INFO without query string" do
@@ -240,7 +240,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       }
 
       current_requests.register env
-      expect(current_requests.snapshot["items"].first["path_info"]).to eq("/items")
+      expect(current_requests.snapshot[:items].first[:path_info]).to eq("/items")
     end
 
     it "prefixes path_info with SCRIPT_NAME when the app is mounted" do
@@ -252,7 +252,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       }
 
       current_requests.register env
-      expect(current_requests.snapshot["items"].first["path_info"]).to eq("/app/items")
+      expect(current_requests.snapshot[:items].first[:path_info]).to eq("/app/items")
     end
 
     it "includes session fields on the entry" do
@@ -261,7 +261,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       end
 
       current_requests.register full_env
-      expect(current_requests.snapshot["items"].first["session"]).to eq("user_id" => "42")
+      expect(current_requests.snapshot[:items].first[:session]).to eq(user_id: "42")
     end
 
     it "reads request fields from env via []" do
@@ -270,7 +270,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       end
 
       current_requests.register full_env
-      expect(current_requests.snapshot["items"].first["PATH_INFO"]).to eq("/reports")
+      expect(current_requests.snapshot[:items].first[:PATH_INFO]).to eq("/reports")
     end
 
     it "allows request fields to override system defaults" do
@@ -282,7 +282,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       end
 
       current_requests.register full_env
-      expect(current_requests.snapshot["items"].first["id"]).to eq("custom-id")
+      expect(current_requests.snapshot[:items].first[:id]).to eq("custom-id")
     end
   end
 
@@ -292,35 +292,35 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       current_requests.register env.merge("PATH_INFO" => "/very-long-path")
 
       snapshot = current_requests.snapshot
-      item = snapshot["items"].first
-      expect(item["path_info"].length).to be <= 5
-      expect(snapshot["truncated"]).to be(true)
+      item = snapshot[:items].first
+      expect(item[:path_info].length).to be <= 5
+      expect(snapshot[:truncated]).to be(true)
     end
 
     it "truncates multibyte strings by character length" do
       current_config.max_field_length = 3
       current_requests.register env.merge("PATH_INFO" => "café-long")
 
-      item = current_requests.snapshot["items"].first
-      expect(item["path_info"]).to eq("caf")
-      expect(item["path_info"].valid_encoding?).to be(true)
+      item = current_requests.snapshot[:items].first
+      expect(item[:path_info]).to eq("caf")
+      expect(item[:path_info].valid_encoding?).to be(true)
     end
 
     it "resets truncated after snapshot" do
       current_config.max_field_length = 5
       current_requests.register env.merge("PATH_INFO" => "/very-long-path")
 
-      expect(current_requests.snapshot["truncated"]).to be(true)
-      expect(current_requests.snapshot["truncated"]).to be(false)
+      expect(current_requests.snapshot[:truncated]).to be(true)
+      expect(current_requests.snapshot[:truncated]).to be(false)
     end
 
     it "clears truncated flag on reset" do
       current_config.max_field_length = 5
       current_requests.register env.merge("PATH_INFO" => "/very-long-path")
-      expect(current_requests.snapshot["truncated"]).to be(true)
+      expect(current_requests.snapshot[:truncated]).to be(true)
 
       current_requests.reset!
-      expect(current_requests.snapshot["truncated"]).to be(false)
+      expect(current_requests.snapshot[:truncated]).to be(false)
     end
   end
 
@@ -334,7 +334,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
       current_requests.register env
 
-      expect(current_requests.snapshot["items"]).to be_empty
+      expect(current_requests.snapshot[:items]).to be_empty
     end
 
     it "allows repeated unregister of the same request" do
@@ -343,7 +343,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       current_requests.unregister env
       current_requests.unregister env
 
-      expect(current_requests.snapshot["items"]).to be_empty
+      expect(current_requests.snapshot[:items]).to be_empty
     end
 
     it "allows unregister when the request was not registered" do
@@ -365,8 +365,8 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       current_requests.register env.merge("action_dispatch.request_id" => "req-2")
       current_requests.register env.merge("PATH_INFO" => "/rejected", "action_dispatch.request_id" => "req-3")
 
-      expect(current_requests.snapshot["dropped_count"]).to eq(1)
-      expect(current_requests.snapshot["dropped_count"]).to eq(0)
+      expect(current_requests.snapshot[:dropped_count]).to eq(1)
+      expect(current_requests.snapshot[:dropped_count]).to eq(0)
     end
   end
 
@@ -377,7 +377,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       current_requests.register env.merge("action_dispatch.request_id" => "req-2")
 
       expect { registry.send(:evict_when_full_keep_longest!) }
-        .not_to change { current_requests.snapshot["items"].size }
+        .not_to change { current_requests.snapshot[:items].size }
     end
 
     it "no-ops newest eviction when the registry is empty" do

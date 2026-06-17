@@ -54,16 +54,7 @@
         "index": { "type": "integer", "minimum": 0 },
         "pid": { "type": "integer" },
         "synced_at": { "type": ["string", "null"], "format": "date-time" },
-        "puma": {
-          "type": "object",
-          "required": [
-            "backlog",
-            "running",
-            "pool_capacity",
-            "max_threads",
-            "requests_count"
-          ]
-        },
+        "puma": { "$ref": "#/$defs/puma_stats" },
         "process": {
           "type": "object",
           "required": ["rss_bytes", "cpu_percent"],
@@ -120,6 +111,30 @@
         }
       },
       "additionalProperties": true
+    },
+    "puma_stats": {
+      "type": "object",
+      "required": [
+        "backlog",
+        "running",
+        "pool_capacity",
+        "busy_threads",
+        "backlog_max",
+        "max_threads",
+        "requests_count",
+        "reactor_max"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "backlog": { "type": "integer", "minimum": 0 },
+        "running": { "type": "integer", "minimum": 0 },
+        "pool_capacity": { "type": "integer", "minimum": 0 },
+        "busy_threads": { "type": "integer", "minimum": 0 },
+        "backlog_max": { "type": "integer", "minimum": 0 },
+        "max_threads": { "type": "integer", "minimum": 0 },
+        "requests_count": { "type": "integer", "minimum": 0 },
+        "reactor_max": { "type": "integer", "minimum": 0 }
+      }
     }
   }
 }

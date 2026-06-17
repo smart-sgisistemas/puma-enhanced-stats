@@ -2,6 +2,8 @@
 
 require "singleton"
 
+require_relative "process_metrics"
+
 module Puma
   module Enhanced
     module Stats
@@ -21,7 +23,7 @@ module Puma
       #
       # @example Register and read back
       #   CurrentRequests.register env
-      #   CurrentRequests.snapshot # => { "items" => [...], "dropped_count" => 0, ... }
+      #   CurrentRequests.snapshot # => { items: [...], dropped_count: 0, ... }
       #   CurrentRequests.unregister env
       class CurrentRequests
         include Singleton
@@ -30,27 +32,42 @@ module Puma
           private :instance
 
           # Clears all entries and counters. Delegates to {#reset!}.
+          #
+          # @return [void]
           def reset! = instance.reset!
 
           # Registers +env+ as in-flight. Delegates to {#register}.
+          #
+          # @param env [Hash] Rack environment
+          # @return [void]
           def register(env) = instance.register(env)
 
           # Removes the entry for +env+. Delegates to {#unregister}.
+          #
+          # @param env [Hash] Rack environment
+          # @return [void]
           def unregister(env) = instance.unregister(env)
 
           # Replaces the active {Configuration}. Delegates to {#config=}.
+          #
+          # @param value [Configuration]
+          # @return [Configuration]
           def config=(value)
             instance.config = value
           end
 
           # Returns the current registry snapshot. Delegates to {#snapshot}.
+          #
+          # @return [Hash{Symbol => Object}] +:items+, +:dropped_count+, +:truncated+, +:process+
           def snapshot = instance.snapshot
         end
 
         # @!attribute [r] config
-        #   Active {Configuration}; set by {Launcher} or defaults to {Configuration.default}.
+        #   @return [Configuration] active configuration
 
         # Builds an empty registry with default configuration.
+        #
+        # @return [void]
         def initialize
           @mutex = Mutex.new
           @entries = {}
@@ -62,6 +79,7 @@ module Puma
         # Replaces the active configuration under mutex.
         #
         # @param value [Configuration]
+        # @return [Configuration]
         def config=(value)
           @mutex.synchronize { @config = value }
         end
@@ -70,6 +88,8 @@ module Puma
         #
         # Called from the cluster +before_worker_boot+ hook so a forked worker
         # starts with an empty registry.
+        #
+        # @return [void]
         def reset!
           @mutex.synchronize do
             @entries.clear
@@ -89,6 +109,7 @@ module Puma
         # insert. Swallows all errors so middleware never propagates failures.
         #
         # @param env [Hash] Rack environment
+        # @return [void]
         def register env
           @mutex.synchronize do
             return if reject_new_when_full?
@@ -115,6 +136,7 @@ module Puma
         # Swallows all errors so the middleware +ensure+ block never raises.
         #
         # @param env [Hash] Rack environment
+        # @return [void]
         def unregister env
           @mutex.synchronize { @entries.delete env["action_dispatch.request_id"] }
         rescue StandardError
@@ -127,17 +149,21 @@ module Puma
         # * +items+ — array of in-flight entry hashes
         # * +dropped_count+ — registrations rejected or evicted since the last snapshot
         # * +truncated+ — whether any field value was truncated since the last snapshot
+        # * +process+ — RSS and CPU for the current worker ({ProcessMetrics.read})
         #
         # Resets +dropped_count+ and +truncated+ after reading so each worker ping
         # reports a delta for the sync interval.
         #
-        # @return [Hash{String => Object}]
+        # @return [Hash{Symbol => Object}]
         def snapshot
+          process = ProcessMetrics.read
+
           @mutex.synchronize do
             result = {
-              "items" => @entries.values,
-              "dropped_count" => @dropped_count,
-              "truncated" => @truncated
+              items: @entries.values,
+              dropped_count: @dropped_count,
+              truncated: @truncated,
+              process: process
             }
             @dropped_count = 0
             @truncated = false
@@ -177,12 +203,12 @@ module Puma
         def build_entry env
           request_fields, request_truncated = build_fields env, namespace: :request
           entry = {
-            "id" => env["action_dispatch.request_id"],
-            "started_at" => started_at_for(env).utc.iso8601(6)
+            id: env["action_dispatch.request_id"],
+            started_at: started_at_for(env).utc.iso8601(6)
           }.merge! request_fields
 
           session_fields, session_truncated = build_fields env, namespace: :session
-          entry["session"] = session_fields unless session_fields.empty?
+          entry[:session] = session_fields unless session_fields.empty?
 
           [entry, request_truncated || session_truncated]
         end
@@ -201,7 +227,7 @@ module Puma
             raw = field.extract source
             value, field_truncated = sanitize_field raw
             truncated ||= field_truncated
-            values[field.name] = value
+            values[field.name.to_sym] = value
           end
 
           [values, truncated]

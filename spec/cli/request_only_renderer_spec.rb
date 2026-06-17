@@ -5,7 +5,7 @@ require "puma/enhanced/stats/cli/options"
 require "puma/enhanced/stats/cli/layout_budget"
 
 RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
-  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json")) }
+  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json"), symbolize_names: true) }
   let(:options) { Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true } }
   let(:budget) { Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 100, options, worker_count: 2) }
 
@@ -19,7 +19,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
   end
 
   it "shows empty state for workers without requests" do
-    payload["workers"].each { |worker| worker["requests"] = { "items" => [] } }
+    payload[:workers].each { |worker| worker[:requests] = { :items => [] } }
 
     output = described_class.new(options).render(payload, budget)
 
@@ -27,7 +27,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
   end
 
   it "filters to a single worker" do
-    payload["workers"] << payload["workers"].first.merge("index" => 1, "pid" => 12346)
+    payload[:workers] << payload[:workers].first.merge(:index => 1, :pid => 12346)
     options.worker = 1
 
     output = described_class.new(options).render(payload, budget)
@@ -37,8 +37,6 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
   end
 
   it "renders a footer in watch mode" do
-    options.watch = true
-
     output = described_class.new(options).render(payload, budget, refresh_interval: 3)
 
     expect(output).to include("FOOTER")
@@ -46,7 +44,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
   end
 
   it "shows empty worker summary" do
-    payload["workers"] = []
+    payload[:workers] = []
 
     output = described_class.new(options).render(payload, budget)
 
@@ -54,9 +52,9 @@ RSpec.describe Puma::Enhanced::Stats::CLI::RequestOnlyRenderer do
   end
 
   it "sorts workers by cpu, rss, and backlog" do
-    payload["workers"] = [
-      payload["workers"].first.merge("index" => 0, "puma" => { "backlog" => 1 }, "process" => { "cpu_percent" => 1, "rss_bytes" => 100 }),
-      payload["workers"].first.merge("index" => 1, "puma" => { "backlog" => 9 }, "process" => { "cpu_percent" => 9, "rss_bytes" => 900 })
+    payload[:workers] = [
+      payload[:workers].first.merge(:index => 0, :puma => { :backlog => 1 }, :process => { :cpu_percent => 1, :rss_bytes => 100 }),
+      payload[:workers].first.merge(:index => 1, :puma => { :backlog => 9 }, :process => { :cpu_percent => 9, :rss_bytes => 900 })
     ]
 
     %w[cpu rss backlog].each do |key|

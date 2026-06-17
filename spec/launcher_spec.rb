@@ -77,7 +77,7 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
       hook = before_worker_boot_hooks(cluster_launcher.config).first
       hook[:block].call(0)
 
-      expect(current_requests.snapshot["items"]).to be_empty
+      expect(current_requests.snapshot[:items]).to be_empty
     end
   end
 
@@ -103,6 +103,12 @@ RSpec.describe Puma::Enhanced::Stats::Launcher do
     single = Puma::Launcher.new(Puma::Configuration.new)
 
     expect(single.workers).to be_nil
+  end
+
+  it "exposes worker handles when clustered" do
+    launcher = Puma::Launcher.new(Puma::Configuration.new { |user| user.workers 2 })
+
+    expect(launcher.workers).to be_an(Array)
   end
 
   describe "worker_check_interval" do

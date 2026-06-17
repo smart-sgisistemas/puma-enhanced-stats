@@ -6,7 +6,7 @@ require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats do
   it "has a version number" do
-    expect(Puma::Enhanced::Stats::VERSION).to eq("0.3.0")
+    expect(Puma::Enhanced::Stats::VERSION).to eq("0.3.1")
   end
 
   it "defines Error" do
@@ -27,6 +27,15 @@ RSpec.describe Puma::Enhanced::Stats do
     expect(Puma::Launcher.ancestors).to include(
       Puma::Enhanced::Stats::Launcher
     )
+  end
+
+  it "prepends cluster worker and handle modules on load" do
+    expect(Puma::Cluster::Worker.ancestors).to include(Puma::Enhanced::Stats::ClusterWorker)
+    expect(Puma::Cluster::WorkerHandle.ancestors).to include(Puma::Enhanced::Stats::WorkerHandle)
+  end
+
+  it "does not prepend Cluster stats" do
+    expect(Puma::Cluster.ancestors.map(&:name)).not_to include("Puma::Enhanced::Stats::Cluster")
   end
 
   it "registers enhanced-stats in pumactl on load" do

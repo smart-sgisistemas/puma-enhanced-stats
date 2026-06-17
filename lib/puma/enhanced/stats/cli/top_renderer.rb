@@ -13,8 +13,14 @@ module Puma
         # SYSTEM shows host load, CPU, memory, and swap via {HostMetrics}.
         # PROCESSES lists worker (and optional master) PIDs enriched with +ps+.
         class TopRenderer
+          # @param options [Options]
+          # @param bar [Bar]
+          # @param master_pid [Integer, nil]
+          # @return [TopRenderer]
           def initialize(options, bar, master_pid: nil) = (@options = options; @bar = bar; @master_pid = master_pid; @host = HostMetrics.read)
 
+          # @param budget [LayoutBudget]
+          # @return [String]
           def render_system budget
             box = Box.new budget.cols
             lines = []
@@ -44,8 +50,12 @@ module Puma
             box.draw title: "SYSTEM ─ #{Format.hostname}", lines: lines
           end
 
+          # @param payload [Hash{Symbol => Object}]
+          # @param budget [LayoutBudget]
+          # @param refresh_interval [Integer]
+          # @return [String]
           def render_processes payload, budget, refresh_interval:
-            workers = payload["workers"] || []
+            workers = payload[:workers] || []
             rows = process_rows workers
             rows = sort_rows rows
             headers = %w[PID %CPU %MEM RSS RUN/CAP BACKLOG POOL W#]
@@ -72,21 +82,21 @@ module Puma
           end
 
           def worker_row worker
-            puma = worker["puma"] || {}
-            process = worker["process"] || {}
+            puma = worker[:puma] || {}
+            process = worker[:process] || {}
             {
-              pid: worker["pid"],
-              cpu: process["cpu_percent"] || "-",
+              pid: worker[:pid],
+              cpu: process[:cpu_percent] || "-",
               mem: "-",
-              rss: process["rss_bytes"] ? Format.bytes(process["rss_bytes"]) : "-",
-              run_cap: "#{puma['running']}/#{puma['pool_capacity']}",
-              backlog: puma["backlog"] || "-",
-              pool: puma["pool_capacity"] || "-",
-              worker_index: worker["index"],
-              sort_cpu: process["cpu_percent"].to_f,
-              sort_rss: process["rss_bytes"].to_i,
-              sort_backlog: puma["backlog"].to_i,
-              sort_index: worker["index"].to_i
+              rss: process[:rss_bytes] ? Format.bytes(process[:rss_bytes]) : "-",
+              run_cap: "#{puma[:running]}/#{puma[:pool_capacity]}",
+              backlog: puma[:backlog] || "-",
+              pool: puma[:pool_capacity] || "-",
+              worker_index: worker[:index],
+              sort_cpu: process[:cpu_percent].to_f,
+              sort_rss: process[:rss_bytes].to_i,
+              sort_backlog: puma[:backlog].to_i,
+              sort_index: worker[:index].to_i
             }
           end
 

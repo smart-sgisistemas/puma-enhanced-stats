@@ -25,6 +25,8 @@ module Puma
       #   end
       class Configuration
         # Allowed values for {Configuration#limit_policy=}.
+        #
+        # @return [Array<Symbol>]
         LIMIT_POLICIES = %i[keep_longest reject_new].freeze
 
         # @!attribute [rw] request_limit
@@ -45,6 +47,8 @@ module Puma
         end
 
         # Registers built-in request fields and applies default limits.
+        #
+        # @return [void]
         def initialize
           @fields = {
             request: {

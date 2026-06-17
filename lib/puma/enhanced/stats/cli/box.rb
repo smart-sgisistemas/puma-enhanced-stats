@@ -16,8 +16,15 @@ module Puma
             divider_l: "╠", divider_r: "╣"
           }.freeze
 
+          # @param width [Integer] outer box width (minimum 10)
+          # @return [Box]
           def initialize(width) = @width = [width, 10].max
 
+          # @param title [String]
+          # @param lines [Array<String>]
+          # @param style [Symbol] +:simple+ or +:double+
+          # @param badge [String, nil]
+          # @return [String]
           def draw title:, lines:, style: :simple, badge: nil
             chars = style == :double ? DOUBLE : SIMPLE
             top = top_border title_label(title, badge), chars
@@ -25,6 +32,11 @@ module Puma
             ([top] + body + [bottom_border(chars)]).join "\n"
           end
 
+          # @param title [String]
+          # @param top_lines [Array<String>]
+          # @param bottom_lines [Array<String>]
+          # @param badge [String, nil]
+          # @return [String]
           def draw_with_divider title:, top_lines:, bottom_lines:, badge: nil
             chars = SIMPLE
             parts = [top_border(title_label(title, badge), chars)]

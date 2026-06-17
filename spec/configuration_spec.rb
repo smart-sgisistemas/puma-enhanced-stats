@@ -44,7 +44,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     current_requests.config = config
     current_requests.register env
 
-    expect(current_requests.snapshot["items"].first["method"]).to eq "OVERRIDE"
+    expect(current_requests.snapshot[:items].first[:method]).to eq "OVERRIDE"
   end
 
   it "reads request fields from env via [] when no block is given" do
@@ -64,7 +64,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     current_requests.config = config
     current_requests.register env
 
-    expect(current_requests.snapshot["items"].first["PATH_INFO"]).to eq "/reports"
+    expect(current_requests.snapshot[:items].first[:PATH_INFO]).to eq "/reports"
   end
 
   it "allows custom request fields with a block" do

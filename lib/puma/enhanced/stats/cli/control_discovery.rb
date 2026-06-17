@@ -10,13 +10,20 @@ module Puma
         # {Puma::Configuration}. When a state file path is configured, values
         # from {StateFile} take precedence for URL, token, and master PID.
         class ControlDiscovery
-          # Resolved connection settings.
+          # Resolved connection settings from +puma.rb+ and optional state file.
+          #
+          # @!attribute state_path [String, nil]
+          # @!attribute control_url [String, nil]
+          # @!attribute token [String, nil]
+          # @!attribute master_pid [Integer, nil]
           Entry = Struct.new :state_path, :control_url, :token, :master_pid, keyword_init: true
 
           # @param env [Hash] environment variables (defaults to +ENV+)
           # @return [Entry]
           def self.resolve(env: ENV) = new(env: env).resolve
 
+          # @param env [Hash] environment variables (defaults to +ENV+)
+          # @return [ControlDiscovery]
           def initialize(env: ENV) = @env = env
 
           # @return [Entry]

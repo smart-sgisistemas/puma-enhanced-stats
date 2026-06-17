@@ -28,22 +28,37 @@ module Puma
           def initialize(configuration) = @configuration = configuration
 
           # Sets {Configuration#request_limit}.
+          #
+          # @param value [Integer, String, #to_int]
+          # @return [Integer]
           def request_limit(value) = @configuration.request_limit = value
 
           # Sets {Configuration#limit_policy}.
+          #
+          # @param value [Symbol, String]
+          # @return [Symbol]
           def limit_policy(value) = @configuration.limit_policy = value
 
           # Sets {Configuration#max_field_length}.
+          #
+          # @param value [Integer, String, #to_int]
+          # @return [Integer]
           def max_field_length(value) = @configuration.max_field_length = value
 
           # Registers request field extractors. See {Configuration#register_fields}.
           #
+          # @param names [Array<Symbol, String>]
+          # @yieldparam env [Hash] Rack environment when a block is given
           # @raise [Error] when a block is given with more than one name
+          # @return [void]
           def request(*names, &block) = @configuration.register_fields(:request, *names, &block)
 
           # Registers session field extractors. See {Configuration#register_fields}.
           #
+          # @param names [Array<Symbol, String>]
+          # @yieldparam rack_session [Object] session object when a block is given
           # @raise [Error] when a block is given with more than one name
+          # @return [void]
           def session(*names, &block) = @configuration.register_fields(:session, *names, &block)
         end
 

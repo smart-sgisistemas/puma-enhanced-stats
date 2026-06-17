@@ -26,7 +26,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(Net::HTTP).to receive(:get_response).and_return(response)
 
     result = described_class.new.fetch
-    expect(result["schema_version"]).to eq(1)
+    expect(result[:schema_version]).to eq(1)
   end
 
   it "raises on authentication failure" do
@@ -44,7 +44,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(host: "127.0.0.1", port: 9293)).and_return(response)
 
-    expect(described_class.new.fetch["schema_version"]).to eq(1)
+    expect(described_class.new.fetch[:schema_version]).to eq(1)
   end
 
   it "reads URL and token from discovery" do
@@ -54,7 +54,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(port: 9393)).and_return(response)
 
-    expect(described_class.new.fetch["schema_version"]).to eq(1)
+    expect(described_class.new.fetch[:schema_version]).to eq(1)
   end
 
   it "raises when control URL is missing" do
@@ -93,7 +93,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(host: "127.0.0.1", port: 9293)).and_return(response)
 
-    expect(described_class.new.fetch["schema_version"]).to eq(1)
+    expect(described_class.new.fetch[:schema_version]).to eq(1)
   end
 
   it "fetches without a token when none is configured" do
@@ -103,7 +103,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(response).to receive(:body).and_return(payload.to_json)
     allow(Net::HTTP).to receive(:get_response).and_return(response)
 
-    expect(described_class.new.fetch["schema_version"]).to eq(1)
+    expect(described_class.new.fetch[:schema_version]).to eq(1)
   end
 
   it "normalizes control URLs with a trailing slash" do
@@ -113,7 +113,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(request_uri: "/enhanced-stats")).and_return(response)
 
-    expect(described_class.new.fetch["schema_version"]).to eq(1)
+    expect(described_class.new.fetch[:schema_version]).to eq(1)
   end
 
   it "exposes master pid from discovery" do

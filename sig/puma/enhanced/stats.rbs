@@ -39,13 +39,13 @@ module Puma
         def self.register: (Hash[untyped, untyped] env) -> void
         def self.unregister: (Hash[untyped, untyped] env) -> void
         def self.config=: (Configuration value) -> Configuration
-        def self.snapshot: () -> Hash[String, untyped]
+        def self.snapshot: () -> Hash[Symbol, untyped]
 
         def config=: (Configuration value) -> Configuration
         def register: (Hash[untyped, untyped] env) -> void
         def unregister: (Hash[untyped, untyped] env) -> void
         def reset!: () -> void
-        def snapshot: () -> Hash[String, untyped]
+        def snapshot: () -> Hash[Symbol, untyped]
       end
 
       class RequestStartMiddleware
@@ -59,14 +59,20 @@ module Puma
       end
 
       class ProcessMetrics
-        EMPTY: Hash[String, Integer | Float | nil]
+        EMPTY: Hash[Symbol, Integer | Float | nil]
 
-        def self.read: () -> Hash[String, Integer | Float | nil]
+        def self.read: () -> Hash[Symbol, Integer | Float | nil]
       end
 
       class Snapshot
-        def self.build: (untyped launcher) -> Hash[String, untyped]
-        def self.fetch: (Hash[untyped, untyped]? hash, Symbol | String key) -> untyped
+        attr_reader config: Configuration
+        attr_reader stats: Hash[Symbol, untyped]
+        attr_reader now: Time
+
+        def self.build: (untyped launcher) -> Hash[Symbol, untyped]
+
+        def initialize: (untyped launcher, ?now: Time) -> void
+        def build: () -> Hash[Symbol, untyped]
       end
 
       class WorkerWrite
@@ -107,8 +113,7 @@ module Puma
 
       module CLI
         class Options
-          attr_accessor no_color: bool
-          attr_accessor watch: bool
+          attr_accessor no_watch: bool
           attr_accessor no_top: bool
           attr_accessor json: bool
           attr_accessor compact: bool
@@ -118,6 +123,7 @@ module Puma
           attr_accessor request_only: bool
 
           def top?: () -> bool
+          def watch?: () -> bool
         end
 
         class Runner
@@ -126,7 +132,7 @@ module Puma
 
         class Fetcher
           def initialize: (url: String, ?token: String?) -> void
-          def fetch: () -> Hash[String, untyped]
+          def fetch: () -> Hash[Symbol, untyped]
         end
 
         class Terminal

@@ -14,6 +14,8 @@ module Puma
         # exit codes +1+ and +0+ respectively.
         class Runner
           class << self
+            # @param argv [Array<String>]
+            # @return [Integer] exit code
             def run(argv) = new.run(argv)
           end
 
@@ -45,7 +47,7 @@ module Puma
               opts.banner = "Usage: puma-enhanced-stats [options]"
               opts.on("-T", "--no-top", "Hide SYSTEM and PROCESSES blocks") { options.no_top = true }
               opts.on("-C", "--no-color", "Disable ANSI colors") { options.no_color = true }
-              opts.on("--watch", "Auto-refresh using worker_check_interval from server") { options.watch = true }
+              opts.on("-W", "--no-watch", "Print one snapshot and exit") { options.no_watch = true }
               opts.on("--request-only", "Show worker summary and in-flight requests only") do
                 options.request_only = true
               end
@@ -66,7 +68,7 @@ module Puma
           def print_json(payload) = (puts JSON.pretty_generate(payload); 0)
 
           def run_dashboard options, fetcher, initial_payload
-            Terminal.trap_winch! if options.watch
+            Terminal.trap_winch! if options.watch?
             payload = initial_payload
             interval = worker_check_interval payload
             deadline = Process.clock_gettime Process::CLOCK_MONOTONIC
@@ -82,11 +84,11 @@ module Puma
               end
 
               frame = render_frame options, fetcher, payload, interval
-              Terminal.clear if options.watch && Terminal.tty?
+              Terminal.clear if options.watch? && Terminal.tty?
               print frame
               print "\n" unless frame.end_with? "\n"
 
-              break unless options.watch
+              break unless options.watch?
 
               Terminal.reset_resize!
               sleep 0.2 until poll_due ||
@@ -99,7 +101,7 @@ module Puma
           def render_frame options, fetcher, payload, interval
             rows, cols = Terminal.size
             cols = options.width || cols
-            workers = payload["workers"] || []
+            workers = payload[:workers] || []
             budget = LayoutBudget.new rows, cols, options, worker_count: workers.size
             colors = Colors.new options
 
@@ -122,7 +124,7 @@ module Puma
           end
 
           def worker_check_interval(payload)
-            value = payload.dig "meta", "worker_check_interval_seconds"
+            value = payload.dig :meta, :worker_check_interval_seconds
             interval = value.to_i
             interval.positive? ? interval : 5
           end

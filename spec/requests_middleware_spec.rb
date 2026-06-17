@@ -21,7 +21,7 @@ RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
     middleware = described_class.new(app)
 
     expect { middleware.call(env) }.to raise_error("boom")
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
   end
 
   it "unregisters when the app returns without waiting for the body" do
@@ -30,7 +30,7 @@ RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
     middleware = described_class.new(app)
     _status, _headers, body = middleware.call(env)
 
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
     expect(body).to eq(["chunk"])
   end
 
@@ -76,7 +76,7 @@ RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
     middleware = described_class.new(app)
     middleware.call(env)
 
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
   end
 
   it "unregisters when hijack app call raises" do
@@ -88,7 +88,7 @@ RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
     middleware = described_class.new(app)
 
     expect { middleware.call(env) }.to raise_error("hijack boom")
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
   end
 
   it "unregisters when hijack capable but rack.hijack is not set" do
@@ -100,6 +100,6 @@ RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
 
     expect(status).to eq(200)
     expect(body).to eq([])
-    expect(current_requests.snapshot["items"]).to be_empty
+    expect(current_requests.snapshot[:items]).to be_empty
   end
 end

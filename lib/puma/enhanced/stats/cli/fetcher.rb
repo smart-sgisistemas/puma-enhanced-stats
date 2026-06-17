@@ -16,13 +16,17 @@ module Puma
         class Fetcher
           class Error < StandardError; end
 
-          # @return [Hash] parsed enhanced-stats payload
+          # @return [Hash{Symbol => Object}] parsed enhanced-stats payload
+          # @raise [Error] when the control URL is missing, auth fails, or JSON is invalid
           def fetch
             uri = build_uri
             response = Net::HTTP.get_response uri
             handle_response response
           end
 
+          # Resolves connection settings via {ControlDiscovery}.
+          #
+          # @return [Fetcher]
           def initialize = @resolved = ControlDiscovery.resolve
 
           # @return [Integer, nil] cluster master PID from the state file, if known
@@ -62,7 +66,7 @@ module Puma
           def handle_response response
             case response
             when Net::HTTPSuccess
-              JSON.parse response.body
+              JSON.parse response.body, symbolize_names: true
             when Net::HTTPForbidden
               raise Error, "authentication failed (403): check control app auth token in config/puma.rb"
             else

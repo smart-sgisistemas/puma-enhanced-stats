@@ -10,16 +10,24 @@ module Puma
         # severity level (+:ok+, +:warn+, +:crit+).
         class SummaryAggregator
           # One SUMMARY row.
+          #
+          # @!attribute label [String]
+          # @!attribute value [String, Integer]
+          # @!attribute ratio [Float, nil]
+          # @!attribute level [Symbol]
+          # @!attribute backlog [Boolean]
           Line = Struct.new :label, :value, :ratio, :level, :backlog, keyword_init: true
 
-          def initialize(payload) = (@payload = payload; @workers = payload["workers"] || []; @summary = payload["summary"] || {})
+          # @param payload [Hash{Symbol => Object}] enhanced-stats JSON
+          # @return [SummaryAggregator]
+          def initialize(payload) = (@payload = payload; @workers = payload[:workers] || []; @summary = payload[:summary] || {})
 
           # @return [Array<Line>]
           def lines
-            reporting = @summary["workers_reporting"].to_i
-            total = @summary["workers_total"].to_i
-            in_flight = @summary["requests_in_flight"].to_i
-            dropped = @summary["requests_dropped_total"].to_i
+            reporting = @summary[:workers_reporting].to_i
+            total = @summary[:workers_total].to_i
+            in_flight = @summary[:requests_in_flight].to_i
+            dropped = @summary[:requests_dropped_total].to_i
 
             backlog_sum = sum_puma :backlog
             running_sum = sum_puma :running
@@ -72,13 +80,13 @@ module Puma
 
           private
 
-          def sum_puma(key) = @workers.sum { |worker| worker.dig("puma", key.to_s).to_i }
+          def sum_puma(key) = @workers.sum { |worker| worker.dig(:puma, key).to_i }
 
           def saturated_worker?
             @workers.any? do |worker|
-              puma = worker["puma"] || {}
-              running = puma["running"].to_i
-              max = puma["max_threads"].to_i
+              puma = worker[:puma] || {}
+              running = puma[:running].to_i
+              max = puma[:max_threads].to_i
               max.positive? && running >= max
             end
           end

@@ -53,6 +53,9 @@ module Puma
     #   end
     module Stats
       # Raised when a configuration value or field registration is invalid.
+      #
+      # @see Configuration
+      # @see DSL
       class Error < StandardError; end
 
       Puma::DSL.prepend DSL
@@ -66,7 +69,8 @@ module Puma
   # Extends {Puma::ControlCLI} with the +enhanced-stats+ command.
   #
   # Enables +pumactl enhanced-stats+ and routes the control app to
-  # {Puma::Enhanced::Stats::Status}.
+  # {Puma::Enhanced::Stats::Status}. Mutates +CMD_PATH_SIG_MAP+ and
+  # +PRINTABLE_COMMANDS+ at load time.
   class ControlCLI
     old_verbose, $VERBOSE = $VERBOSE, nil
     CMD_PATH_SIG_MAP = CMD_PATH_SIG_MAP.merge("enhanced-stats" => nil).freeze

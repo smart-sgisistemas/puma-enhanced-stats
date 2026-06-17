@@ -11,17 +11,12 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
     Puma::Enhanced::Stats::CurrentRequests.reset!
   end
 
-  it "injects _enhanced_stats into ping messages with brace-delimited JSON" do
-    message = "p1234 {\"backlog\":0, \"running\":1, \"pool_capacity\":5, \"max_threads\":5, \"requests_count\":0}\n"
-
-    described_class.new(io) << message
-
-    payload = JSON.parse(io.string[/\{.*\}/])
-    expect(payload["backlog"]).to eq(0)
-    expect(payload["_enhanced_stats"]).to include("items", "process")
+  def parse_ping_payload output
+    prefix = output[/\Ap\d+/] || ""
+    JSON.parse(output.delete_prefix(prefix), symbolize_names: true)
   end
 
-  it "injects _enhanced_stats into worker ping messages" do
+  it "injects enhanced_stats into worker ping messages" do
     Puma::Enhanced::Stats::CurrentRequests.register(
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/slow",
@@ -32,17 +27,24 @@ RSpec.describe Puma::Enhanced::Stats::WorkerWrite do
 
     described_class.new(io) << ping_message
 
-    payload = JSON.parse(io.string[/\{.*\}/])
-    expect(payload["backlog"]).to eq(0)
-    expect(payload["_enhanced_stats"]["items"].size).to eq(1)
-    expect(payload["_enhanced_stats"]["items"].first["path_info"]).to end_with("/slow")
-    expect(payload["_enhanced_stats"]["process"]).to include("rss_bytes", "cpu_percent")
+    payload = parse_ping_payload(io.string)
+    expect(payload[:backlog]).to eq(0)
+    expect(payload[:enhanced_stats][:items].size).to eq(1)
+    expect(payload[:enhanced_stats][:items].first[:path_info]).to end_with("/slow")
+    expect(payload[:enhanced_stats][:process]).to include(:rss_bytes, :cpu_percent)
   end
 
   it "passes through non-ping messages unchanged" do
     described_class.new(io) << "E11234\t{}\n"
 
     expect(io.string).to eq("E11234\t{}\n")
+  end
+
+  it "passes through ping messages without a pid prefix" do
+    message = "p\n"
+    described_class.new(io) << message
+
+    expect(io.string).to eq(message)
   end
 
   it "falls back when ping json is invalid" do
@@ -58,7 +60,7 @@ RSpec.describe Puma::Enhanced::Stats::ClusterWorker do
     parent = Class.new do
       attr_reader :pipes
 
-      def initialize(index:, master:, launcher:, pipes:, **kwargs)
+      def initialize(index:, master:, launcher:, pipes:, **)
         @pipes = pipes
       end
     end

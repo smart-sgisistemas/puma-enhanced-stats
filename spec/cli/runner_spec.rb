@@ -5,10 +5,10 @@ require "puma/enhanced/stats/cli/runner"
 RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
   let(:payload) do
     {
-      "schema_version" => 1,
-      "meta" => { "worker_check_interval_seconds" => 1 },
-      "summary" => {},
-      "workers" => []
+      schema_version: 1,
+      meta: { worker_check_interval_seconds: 1 },
+      summary: {},
+      workers: []
     }
   end
 
@@ -46,31 +46,37 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
   end
 
   it "renders a dashboard frame with SYSTEM by default" do
-    expect { described_class.run(["-w", "100"]) }
+    expect { described_class.run(["-W", "-w", "100"]) }
       .to output(/SYSTEM/).to_stdout
   end
 
   it "hides SYSTEM with --no-top" do
-    expect { described_class.run(["-T", "-w", "100"]) }
+    expect { described_class.run(["-T", "-W", "-w", "100"]) }
       .to output(a_string_matching(/SUMMARY/)).to_stdout
-    expect { described_class.run(["-T", "-w", "100"]) }
+    expect { described_class.run(["-T", "-W", "-w", "100"]) }
       .not_to output(a_string_matching(/SYSTEM/)).to_stdout
   end
 
   it "renders request-only output" do
     rich_payload = payload.merge(
-      "workers" => [
+      workers: [
         {
-          "index" => 0,
-          "puma" => { "backlog" => 1, "pool_capacity" => 3, "max_threads" => 5, "running" => 2 },
-          "requests" => { "items" => [{ "elapsed_ms" => 1200, "method" => "GET", "path_info" => "/slow" }] }
+          index: 0,
+          puma: { backlog: 1, pool_capacity: 3, max_threads: 5, running: 2 },
+          requests: { items: [{ elapsed_ms: 1200, method: "GET", path_info: "/slow" }] }
         }
       ]
     )
     allow(fetcher).to receive(:fetch).and_return(rich_payload)
 
-    expect { described_class.run(["--request-only", "-w", "100"]) }
+    expect { described_class.run(["--request-only", "-W", "-w", "100"]) }
       .to output(a_string_matching(/WORKERS.*WORKER 0.*\/slow/m)).to_stdout
+  end
+
+  it "prints one snapshot with --no-watch" do
+    expect(Puma::Enhanced::Stats::CLI::Terminal).not_to receive(:trap_winch!)
+    expect { described_class.run(["-W", "-w", "100"]) }
+      .to output(/SYSTEM/).to_stdout
   end
 
   it "exits watch loop on interrupt" do
@@ -82,7 +88,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
       method.call(*args)
     end
 
-    expect(described_class.run(["--watch", "-w", "100"])).to eq(0)
+    expect(described_class.run(["-w", "100"])).to eq(0)
   end
 
   it "clears the screen and redraws on resize while watching" do
@@ -96,16 +102,16 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
     allow(Puma::Enhanced::Stats::CLI::Terminal).to receive(:tty?).and_return(true)
     allow(Puma::Enhanced::Stats::CLI::Terminal).to receive(:resize_pending).and_return(false, true)
 
-    expect(described_class.run(["--watch", "-w", "100"])).to eq(0)
+    expect(described_class.run(["-w", "100"])).to eq(0)
     expect(Puma::Enhanced::Stats::CLI::Terminal).to have_received(:clear).at_least(:once)
   end
 
   it "uses the default worker check interval when meta is missing" do
-    allow(fetcher).to receive(:fetch).and_return({ "schema_version" => 1, "workers" => [] })
+    allow(fetcher).to receive(:fetch).and_return({ schema_version: 1, workers: [] })
     runner = described_class.new
     allow(runner).to receive(:sleep)
 
-    expect(runner.send(:worker_check_interval, { "meta" => {} })).to eq(5)
+    expect(runner.send(:worker_check_interval, { meta: {} })).to eq(5)
   end
 
   it "prints a trailing newline when the frame does not end with one" do
@@ -117,7 +123,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
       "frame-without-newline"
     end
 
-    expect { described_class.run(["--watch", "-w", "100"]) }
+    expect { described_class.run(["-w", "100"]) }
       .to output("frame-without-newline\n").to_stdout
   end
 
@@ -130,7 +136,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
       "frame-with-newline\n"
     end
 
-    expect { described_class.run(["--watch", "-w", "100"]) }
+    expect { described_class.run(["-w", "100"]) }
       .to output("frame-with-newline\n").to_stdout
   end
 end

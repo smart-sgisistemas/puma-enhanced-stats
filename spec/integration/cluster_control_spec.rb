@@ -40,4 +40,19 @@ RSpec.describe "cluster mode control app", :integration do
 
     validate_schema(payload)
   end
+
+  it "keeps native pumactl stats free of enhanced_stats" do
+    sleep 2
+
+    stats = IntegrationServer.fetch_puma_stats(
+      control_port: @server[:control_port],
+      token: @server[:token]
+    )
+
+    expect(stats["worker_status"]).to be_an(Array)
+    expect(stats["worker_status"]).not_to be_empty
+    stats["worker_status"].each do |worker|
+      expect(worker).not_to have_key("enhanced_stats")
+    end
+  end
 end

@@ -21,6 +21,11 @@ module Puma
 
           attr_reader :cols, :rows, :compact_grid, :warnings
 
+          # @param rows [Integer] terminal height
+          # @param cols [Integer] terminal width
+          # @param options [Options]
+          # @param worker_count [Integer]
+          # @return [LayoutBudget]
           def initialize rows, cols, options, worker_count:
             @rows = rows
             @cols = cols
@@ -30,16 +35,21 @@ module Puma
             @compact_grid = compact_grid? worker_count
           end
 
+          # @return [Integer] lines available for worker boxes
           def available_for_workers
             reserved = HEADER_LINES + SUMMARY_LINES
             reserved += SYSTEM_LINES + PROCESSES_LINES if @options.top?
-            reserved += FOOTER_LINES if @options.watch
+            reserved += FOOTER_LINES if @options.watch?
             [@rows - reserved, WORKER_METRICS_LINES].max
           end
 
+          # @param label_cols [Integer]
+          # @return [Integer]
           def bar_width(label_cols: 22) = [@cols - label_cols - 6, 8].max
 
+          # @param items [Array<Hash>]
           # @param overflow_fields [Integer] nested overflow lines per request row
+          # @return [Integer]
           def max_requests_for_worker items, overflow_fields: 0
             budget = (available_for_workers / @worker_count) - WORKER_OVERHEAD
             budget = [budget, 3].max
@@ -47,6 +57,7 @@ module Puma
             [budget / per_request, items.size].min
           end
 
+          # @return [Integer]
           def worker_inner_width = @compact_grid ? (@cols - 3) / 2 : @cols
 
           private

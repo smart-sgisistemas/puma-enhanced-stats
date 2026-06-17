@@ -29,7 +29,7 @@ RSpec.describe "puma-enhanced-stats CLI", :integration do
 
     output = nil
     with_puma_config do
-      cmd = ["bundle", "exec", "puma-enhanced-stats", "-C", "-w", "100"]
+      cmd = ["bundle", "exec", "puma-enhanced-stats", "-C", "-W", "-w", "100"]
       output = `#{Shellwords.shelljoin(cmd)} 2>&1`
     end
 
@@ -72,7 +72,7 @@ RSpec.describe "puma-enhanced-stats CLI", :integration do
 
     output = nil
     with_puma_config do
-      cmd = ["bundle", "exec", "puma-enhanced-stats", "--request-only", "-C", "-w", "100"]
+      cmd = ["bundle", "exec", "puma-enhanced-stats", "--request-only", "-C", "-W", "-w", "100"]
       output = `#{Shellwords.shelljoin(cmd)} 2>&1`
     end
 

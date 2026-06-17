@@ -115,6 +115,14 @@ module IntegrationServer
     JSON.parse(response.body)
   end
 
+  def fetch_puma_stats control_port:, token: TEST_TOKEN
+    uri = URI("http://127.0.0.1:#{control_port}/stats?token=#{token}")
+    response = Net::HTTP.get_response(uri)
+    raise "stats failed: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess)
+
+    JSON.parse(response.body)
+  end
+
   def trigger_slow_request app_port, path: "/slow"
     Thread.new do
       Net::HTTP.get(URI("http://127.0.0.1:#{app_port}#{path}"))

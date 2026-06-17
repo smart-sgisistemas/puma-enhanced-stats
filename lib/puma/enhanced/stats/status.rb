@@ -8,7 +8,7 @@ module Puma
       # Adds +GET /enhanced-stats+ to the Puma control server.
       #
       # Prepended to {Puma::App::Status}. Reuses Puma's +authenticate+ and
-      # +rack_response+ helpers. Returns JSON built by {Snapshot.build}.
+      # +rack_response+ helpers. Returns JSON built by {Snapshot#build}.
       #
       # @example Control app request
       #   GET /enhanced-stats?token=secret
@@ -22,7 +22,7 @@ module Puma
           if env["PATH_INFO"][/\/([^\/]+)$/, 1] == "enhanced-stats"
             return rack_response(403, "Invalid auth token", "text/plain") unless authenticate(env)
 
-            return rack_response(200, JSON.generate(Snapshot.build(@launcher)))
+            return rack_response(200, JSON.generate(Snapshot.new(@launcher).build))
           end
 
           super

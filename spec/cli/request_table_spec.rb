@@ -4,13 +4,13 @@ require "puma/enhanced/stats/cli/request_table"
 RSpec.describe Puma::Enhanced::Stats::CLI::RequestTable do
   let(:items) do
     [{
-      "id" => "abc",
-      "elapsed_ms" => 4500,
-      "method" => "GET",
-      "path_info" => "/reports",
-      "remote_ip" => "10.0.0.1",
-      "shop_id" => "BR-001",
-      "session" => { "user_id" => "42" }
+      id: "abc",
+      elapsed_ms: 4500,
+      method: "GET",
+      path_info: "/reports",
+      remote_ip: "10.0.0.1",
+      shop_id: "BR-001",
+      session: { user_id: "42" }
     }]
   end
 

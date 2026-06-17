@@ -8,7 +8,7 @@ require "puma/enhanced/stats/cli/layout_budget"
 require "puma/enhanced/stats/cli/host_metrics"
 
 RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
-  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json")) }
+  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json"), symbolize_names: true) }
   let(:options) { Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true } }
   let(:colors) { Puma::Enhanced::Stats::CLI::Colors.new(options) }
   let(:bar) { Puma::Enhanced::Stats::CLI::Bar.new(colors) }
@@ -79,7 +79,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
       master_pid: nil
     )
     backlog_renderer = described_class.new(
-      Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = "backlog" },
+      Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.sort = :backlog },
       bar,
       master_pid: nil
     )
@@ -112,7 +112,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::TopRenderer do
     expect(system).not_to include("Swap")
 
     rssless = payload.merge(
-      "workers" => [payload["workers"].first.merge("process" => { "cpu_percent" => 1.0 })]
+      :workers => [payload[:workers].first.merge(:process => { :cpu_percent => 1.0 })]
     )
     output = renderer.render_processes(rssless, budget, refresh_interval: 5)
 

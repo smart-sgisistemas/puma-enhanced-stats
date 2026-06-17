@@ -9,12 +9,17 @@ module Puma
         # Prefers {Puma::StateFile} when available; falls back to YAML parsing.
         # Used by {ControlDiscovery} when +state+ is set in +puma.rb+.
         class StateFile
+          # @!attribute control_url [String, nil]
+          # @!attribute token [String, nil]
+          # @!attribute master_pid [Integer, nil]
           Entry = Struct.new :control_url, :token, :master_pid, keyword_init: true
 
           # @param path [String] path to the state file
           # @return [Entry, nil]
           def self.load(path) = new(path).load
 
+          # @param path [String]
+          # @return [StateFile]
           def initialize(path) = @path = path
 
           # @return [Entry, nil]

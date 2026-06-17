@@ -7,9 +7,10 @@ module Puma
         # Parsed command-line flags for {Runner}.
         #
         # SYSTEM/PROCESSES blocks are shown by default; pass +--no-top+ to hide them.
+        # Watch mode is the default; pass +-W+ / +--no-watch+ for a one-shot snapshot.
         class Options
-          # @!attribute [rw] watch
-          #   When +true+, redraw on +worker_check_interval+ and handle SIGWINCH.
+          # @!attribute [rw] no_watch
+          #   When +true+, print one snapshot and exit (no auto-refresh).
           # @!attribute [rw] no_top
           #   Hides SYSTEM and PROCESSES blocks.
           # @!attribute [rw] json
@@ -26,15 +27,19 @@ module Puma
           #   Fixed terminal width for tests/CI.
           # @!attribute [rw] request_only
           #   Minimal view: worker summary and in-flight requests only.
-          attr_accessor :watch, :no_top, :json, :no_color,
+          attr_accessor :no_watch, :no_top, :json, :no_color,
                         :worker, :compact, :sort, :width, :request_only
 
+          # @return [void]
           def initialize
             @sort = "index"
           end
 
           # @return [Boolean] +false+ when +--no-top+ was passed
           def top? = !@no_top
+
+          # @return [Boolean] +false+ when +-W+ / +--no-watch+ was passed
+          def watch? = !@no_watch
         end
       end
     end

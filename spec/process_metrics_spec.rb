@@ -8,9 +8,9 @@ RSpec.describe Puma::Enhanced::Stats::ProcessMetrics do
 
     result = described_class.read
 
-    expect(result["rss_bytes"]).to be_a(Integer)
-    expect(result["rss_bytes"]).to be_positive
-    expect(result["cpu_percent"]).to be_a(Numeric)
+    expect(result[:rss_bytes]).to be_a(Integer)
+    expect(result[:rss_bytes]).to be_positive
+    expect(result[:cpu_percent]).to be_a(Numeric)
   end
 
   it "returns empty metrics on unsupported platforms" do

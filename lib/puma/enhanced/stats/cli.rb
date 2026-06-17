@@ -28,15 +28,16 @@ module Puma
       # the gem is required by Rails/Puma for server-side collection.
       #
       # Connection settings are discovered from +config/puma.rb+ via
-      # {ControlDiscovery} (same model as +pumactl+). In +--watch+ mode the
-      # refresh interval follows +meta.worker_check_interval_seconds+ from the
-      # server payload (Puma's +worker_check_interval+).
+      # {ControlDiscovery} (same model as +pumactl+). Watch mode is the default;
+      # pass +-W+ / +--no-watch+ for a one-shot snapshot. +--json+ always prints
+      # once and exits. Refresh interval follows +meta.worker_check_interval_seconds+
+      # (Puma's +worker_check_interval+).
       #
-      # @example One-shot dashboard
+      # @example Live dashboard (default)
       #   puma-enhanced-stats
       #
-      # @example Watch mode
-      #   puma-enhanced-stats --watch
+      # @example One-shot snapshot
+      #   puma-enhanced-stats --no-watch
       module CLI
       end
     end

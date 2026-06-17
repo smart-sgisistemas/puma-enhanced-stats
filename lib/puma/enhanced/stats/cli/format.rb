@@ -11,6 +11,9 @@ module Puma
         module Format
           module_function
 
+          # @param text [Object]
+          # @param max_width [Integer]
+          # @return [String]
           def truncate text, max_width
             string = text.to_s
             return string if string.length <= max_width
@@ -20,6 +23,8 @@ module Puma
             "#{string[0, max_width - 1]}…"
           end
 
+          # @param size [Integer, nil]
+          # @return [String]
           def bytes size
             return "n/a" unless size.is_a?(Integer)
 
@@ -35,6 +40,8 @@ module Puma
             end
           end
 
+          # @param ms [Integer, nil]
+          # @return [String]
           def elapsed_ms ms
             return "n/a" unless ms.is_a?(Integer)
 
@@ -44,6 +51,9 @@ module Puma
             format("%.1fm", seconds / 60)
           end
 
+          # @param iso8601 [String]
+          # @param now [Time]
+          # @return [String]
           def rel_time iso8601, now: Time.now
             return "never" if iso8601.to_s.empty?
 
@@ -56,14 +66,20 @@ module Puma
             "n/a"
           end
 
+          # @return [String]
           def hostname
             Socket.gethostname
           rescue StandardError
             "localhost"
           end
 
+          # @param columns [Array<Object>]
+          # @param widths [Array<Integer>]
+          # @return [String]
           def table_row(columns, widths) = columns.each_with_index.map { |value, index| value.to_s.ljust(widths[index]) }.join("  ")
 
+          # @param rows [Array<Array<Object>>]
+          # @return [Array<Integer>]
           def column_widths rows
             widths = []
             rows.each do |row|

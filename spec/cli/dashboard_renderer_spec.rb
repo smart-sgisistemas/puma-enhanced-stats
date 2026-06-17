@@ -7,7 +7,7 @@ require "puma/enhanced/stats/cli/options"
 require "puma/enhanced/stats/cli/layout_budget"
 
 RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
-  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json")) }
+  let(:payload) { JSON.parse(File.read("spec/fixtures/enhanced-stats-v1.sample.json"), symbolize_names: true) }
   let(:options) { Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true } }
   let(:colors) { Puma::Enhanced::Stats::CLI::Colors.new(options) }
   let(:bar) { Puma::Enhanced::Stats::CLI::Bar.new(colors) }
@@ -26,9 +26,9 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
 
   it "filters and sorts workers" do
     workers_payload = payload.merge(
-      "workers" => [
-        payload["workers"].first,
-        payload["workers"].first.merge("index" => 1, "pid" => 99, "process" => { "cpu_percent" => 50.0, "rss_bytes" => 999 })
+      :workers => [
+        payload[:workers].first,
+        payload[:workers].first.merge(:index => 1, :pid => 99, :process => { :cpu_percent => 50.0, :rss_bytes => 999 })
       ]
     )
     filter_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.worker = 1 }
@@ -55,13 +55,12 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
     compact_options = Puma::Enhanced::Stats::CLI::Options.new.tap do |o|
       o.no_color = true
       o.compact = true
-      o.watch = true
     end
     compact_budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 140, compact_options, worker_count: 2)
     compact_payload = payload.merge(
-      "workers" => [
-        payload["workers"].first,
-        payload["workers"].first.merge("index" => 1, "pid" => 99)
+      :workers => [
+        payload[:workers].first,
+        payload[:workers].first.merge(:index => 1, :pid => 99)
       ]
     )
     compact_renderer = described_class.new(compact_options, bar)
@@ -72,8 +71,17 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
     expect(body).to include("Refresh 5s")
   end
 
+  it "uses stacked layout for compact mode with a single worker" do
+    compact_options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true; o.compact = true }
+    compact_budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 140, compact_options, worker_count: 1)
+    body = described_class.new(compact_options, bar).render_body(payload, compact_budget)
+
+    expect(body).to include("WORKER 0")
+    expect(body).not_to include("WORKERS")
+  end
+
   it "formats invalid collected timestamps as plain text" do
-    invalid_payload = payload.merge("meta" => payload["meta"].merge("collected_at" => "not-a-time"))
+    invalid_payload = payload.merge(:meta => payload[:meta].merge(:collected_at => "not-a-time"))
     header = renderer.render_header(invalid_payload, budget)
 
     expect(header).to include("Collected not-a-time")
@@ -81,22 +89,22 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
 
   it "renders worker badges, truncated requests, and warning summary rows" do
     workers_payload = {
-      "summary" => {
-        "workers_total" => 1,
-        "workers_reporting" => 0,
-        "requests_in_flight" => 0,
-        "requests_dropped_total" => 1
+      :summary => {
+        :workers_total => 1,
+        :workers_reporting => 0,
+        :requests_in_flight => 0,
+        :requests_dropped_total => 1
       },
-      "workers" => [
-        payload["workers"].first.merge(
-          "synced_at" => nil,
-          "process" => {},
-          "requests" => payload["workers"].first["requests"].merge("meta" => payload["workers"].first["requests"]["meta"].merge("truncated" => true))
+      :workers => [
+        payload[:workers].first.merge(
+          :synced_at => nil,
+          :process => {},
+          :requests => payload[:workers].first[:requests].merge(:meta => payload[:workers].first[:requests][:meta].merge(:truncated => true))
         ),
-        payload["workers"].first.merge(
-          "index" => 1,
-          "pid" => 99,
-          "puma" => payload["workers"].first["puma"].merge("running" => 5, "backlog" => 2)
+        payload[:workers].first.merge(
+          :index => 1,
+          :pid => 99,
+          :puma => payload[:workers].first[:puma].merge(:running => 5, :backlog => 2)
         )
       ]
     }
@@ -109,7 +117,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
   end
 
   it "skips worker sections when no workers are present" do
-    empty_payload = payload.merge("workers" => [])
+    empty_payload = payload.merge(:workers => [])
     body = renderer.render_body(empty_payload, budget)
 
     expect(body).to include("SUMMARY")
@@ -118,17 +126,17 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
 
   it "renders queue badges and zero-thread workers" do
     workers_payload = {
-      "summary" => payload["summary"],
-      "workers" => [
-        payload["workers"].first.merge(
-          "puma" => { "backlog" => 2, "running" => 1, "pool_capacity" => 3, "max_threads" => 5 },
-          "process" => { "cpu_percent" => 12.5, "rss_bytes" => 256_000_000 }
+      :summary => payload[:summary],
+      :workers => [
+        payload[:workers].first.merge(
+          :puma => { :backlog => 2, :running => 1, :pool_capacity => 3, :max_threads => 5 },
+          :process => { :cpu_percent => 12.5, :rss_bytes => 256_000_000 }
         ),
-        payload["workers"].first.merge(
-          "index" => 1,
-          "pid" => 99,
-          "puma" => { "backlog" => 3, "running" => 0, "pool_capacity" => 0, "max_threads" => 0 },
-          "process" => {}
+        payload[:workers].first.merge(
+          :index => 1,
+          :pid => 99,
+          :puma => { :backlog => 3, :running => 0, :pool_capacity => 0, :max_threads => 0 },
+          :process => {}
         )
       ]
     }
@@ -143,12 +151,12 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
 
   it "computes backlog bars when max threads is zero" do
     worker = {
-      "index" => 1,
-      "pid" => 99,
-      "puma" => { "backlog" => 3, "running" => 0, "pool_capacity" => 0, "max_threads" => 0 },
-      "process" => {}
+      :index => 1,
+      :pid => 99,
+      :puma => { :backlog => 3, :running => 0, :pool_capacity => 0, :max_threads => 0 },
+      :process => {}
     }
-    lines = renderer.send(:worker_metric_lines, worker["puma"], worker["process"], 100, worker)
+    lines = renderer.send(:worker_metric_lines, worker[:puma], worker[:process], 100, worker)
 
     expect(lines.join("\n")).to include("Backlog")
     expect(lines.join("\n")).to include("3")
@@ -156,12 +164,12 @@ RSpec.describe Puma::Enhanced::Stats::CLI::DashboardRenderer do
 
   it "computes zero backlog ratio when max threads and backlog are zero" do
     worker = {
-      "index" => 1,
-      "pid" => 99,
-      "puma" => { "backlog" => 0, "running" => 0, "pool_capacity" => 0, "max_threads" => 0 },
-      "process" => {}
+      :index => 1,
+      :pid => 99,
+      :puma => { :backlog => 0, :running => 0, :pool_capacity => 0, :max_threads => 0 },
+      :process => {}
     }
-    lines = renderer.send(:worker_metric_lines, worker["puma"], worker["process"], 100, worker)
+    lines = renderer.send(:worker_metric_lines, worker[:puma], worker[:process], 100, worker)
 
     expect(lines.join("\n")).to include("Backlog    0")
   end

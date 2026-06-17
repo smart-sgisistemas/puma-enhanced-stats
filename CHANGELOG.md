@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1 — 2026-06-17
+
+### Changed
+
+- `Snapshot` refactored to an instance API (`Snapshot.new(launcher).build`); cluster enhanced data merges from `WorkerHandle#enhanced_stats` via `Launcher#workers` without mutating `Puma::Cluster#stats` — `pumactl stats` output stays Puma-native
+- Worker ping key renamed from `_enhanced_stats` to `enhanced_stats`
+- JSON schema `workers[].puma` now documents all `Puma::Server::STAT_METHODS` counters (`busy_threads`, `backlog_max`, `reactor_max`, …)
+- YARD documentation expanded across core and CLI modules
+
+### Added
+
+- CI runs `spec:coverage` with 100% line and branch enforcement
+- Integration spec asserts `GET /stats` does not include `enhanced_stats`
+
 ## 0.3.0 — 2026-06-17
 
 ### Added
@@ -108,7 +122,7 @@
   - `reject_new` — drops new registrations when full
 - Field value truncation via `max_field_length` with `truncated` flag in snapshots
 - Registry builds entries outside the mutex; duplicate request ids replace prior entries
-- Cluster sync via `_enhanced_stats` injected into worker ping payloads (`WorkerWrite` → `WorkerHandle`)
+- Cluster sync via `enhanced_stats` injected into worker ping payloads (`WorkerWrite` → `WorkerHandle`)
 - `sync_interval` overrides Puma `worker_check_interval` in cluster mode
 - On-demand process metrics via `ProcessMetrics.read` (`ps` on Linux/macOS)
 - `before_worker_boot` hook clears the in-flight registry when a cluster worker boots

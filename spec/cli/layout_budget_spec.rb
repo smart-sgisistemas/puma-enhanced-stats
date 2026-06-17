@@ -32,15 +32,20 @@ RSpec.describe Puma::Enhanced::Stats::CLI::LayoutBudget do
   end
 
   it "reserves space for top and watch sections" do
-    options.watch = true
     budget = described_class.new(40, 100, options, worker_count: 1)
 
     expect(budget.available_for_workers).to eq(15)
   end
 
+  it "reserves less space when watch is disabled" do
+    options.no_watch = true
+    budget = described_class.new(40, 100, options, worker_count: 1)
+
+    expect(budget.available_for_workers).to eq(18)
+  end
+
   it "reserves less space when top is hidden" do
     options.no_top = true
-    options.watch = true
     budget = described_class.new(40, 100, options, worker_count: 1)
 
     expect(budget.available_for_workers).to eq(27)

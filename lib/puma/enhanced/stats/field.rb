@@ -24,6 +24,7 @@ module Puma
 
         # @param name [Symbol, String] field name written on the entry
         # @param block [Proc, nil] receives +env+ or session hash; omit for lookup
+        # @return [void]
         def initialize name:, block: nil
           @name = name.to_s
           @block = block

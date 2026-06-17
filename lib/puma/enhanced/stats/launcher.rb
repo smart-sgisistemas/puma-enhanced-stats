@@ -15,14 +15,16 @@ module Puma
       #   # => CurrentRequests.config = enhanced_config
       #   # => before_worker_boot { CurrentRequests.reset! }
       module Launcher
-        # Returns cluster worker handles, or +nil+ in single mode.
+        # Cluster worker handles for internal snapshot assembly (+nil+ in single mode).
         #
-        # Used by {Snapshot} to read per-worker +enhanced_stats+ from handles.
+        # Not used by {Puma::Cluster#stats}; keeps +pumactl stats+ in the native Puma format.
         #
         # @return [Array<Puma::Cluster::WorkerHandle>, nil]
         def workers = (@runner.workers if clustered?)
 
         # Publishes configuration and cluster hooks, then starts Puma.
+        #
+        # @return [void]
         def run
           enhanced_config = config.options[:enhanced_stats] || Configuration.default
 

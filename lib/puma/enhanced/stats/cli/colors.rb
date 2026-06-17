@@ -17,11 +17,17 @@ module Puma
             muted: :dim
           }.freeze
 
+          # @param options [Options]
+          # @return [Colors]
           def initialize(options) = @pastel = Pastel.new(enabled: !options.no_color && Terminal.tty?)
 
           # Maps a ratio to +:ok+, +:warn+, or +:crit+.
           #
           # Backlog bars treat any positive ratio as +:crit+.
+          #
+          # @param ratio [Numeric]
+          # @param backlog [Boolean]
+          # @return [Symbol] +:ok+, +:warn+, or +:crit+
           def level ratio, backlog: false
             return :crit if backlog && ratio.positive?
             return :crit if ratio >= 0.9
@@ -30,6 +36,9 @@ module Puma
             :ok
           end
 
+          # @param text [String]
+          # @param level [Symbol]
+          # @return [String]
           def paint(text, level = :ok) = @pastel.decorate(text, LEVELS.fetch(level))
         end
       end

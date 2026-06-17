@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "format"
+
 module Puma
   module Enhanced
     module Stats
@@ -9,11 +11,16 @@ module Puma
         # Fits as many columns as the configured width allows; overflow fields
         # appear as nested +└+ lines under each request row.
         class RequestTable
-          RESERVED = %w[id started_at elapsed_ms session].freeze
-          PRIMARY_ORDER = %w[elapsed_ms method path_info remote_ip].freeze
+          RESERVED = %i[id started_at elapsed_ms session].freeze
+          PRIMARY_ORDER = %i[elapsed_ms method path_info remote_ip].freeze
 
+          # @param items [Array<Hash{Symbol => Object}>]
+          # @param inner_width [Integer]
+          # @return [RequestTable]
           def initialize(items, inner_width:) = (@items = items; @inner_width = inner_width)
 
+          # @param max_items [Integer]
+          # @return [Array<String>]
           def render max_items:
             return ["No in-flight requests"] if @items.empty?
 
@@ -26,6 +33,7 @@ module Puma
             lines
           end
 
+          # @return [Integer] overflow field count from {#column_layout}
           def overflow_field_count = column_layout.last.size
 
           private
@@ -41,7 +49,7 @@ module Puma
 
                 request_fields << key unless request_fields.include? key
               end
-              (item["session"] || {}).each_key do |key|
+              (item[:session] || {}).each_key do |key|
                 field = "session.#{key}"
                 session_fields << field unless session_fields.include? field
               end
@@ -66,12 +74,12 @@ module Puma
 
           def header_for field
             case field
-            when "elapsed_ms" then "ELAPSED"
-            when "method" then "METHOD"
-            when "path_info" then "PATH"
-            when "remote_ip" then "REMOTE"
+            when :elapsed_ms then "ELAPSED"
+            when :method then "METHOD"
+            when :path_info then "PATH"
+            when :remote_ip then "REMOTE"
             when /\Asession\.(.+)\z/ then Regexp.last_match(1).upcase[0, 8]
-            else field.upcase.tr("_", " ")[0, 10]
+            else field.to_s.upcase.tr("_", " ")[0, 10]
             end
           end
 
@@ -95,10 +103,10 @@ module Puma
           end
 
           def cell_value item, field
-            if field == "elapsed_ms"
-              Format.elapsed_ms item["elapsed_ms"]
+            if field == :elapsed_ms
+              Format.elapsed_ms item[:elapsed_ms]
             elsif field.start_with? "session."
-              item.dig "session", field.split(".", 2).last
+              item.dig :session, field.split(".", 2).last.to_sym
             else
               item[field]
             end.to_s

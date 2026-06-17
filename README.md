@@ -9,7 +9,7 @@ Gem to collect, enrich, and expose extended statistics from Puma's `control_app`
 | Capability | Description |
 |------------|-------------|
 | In-flight requests | Method, path, remote IP, and optional session fields while a request is active |
-| Puma stats | Backlog, running threads, pool capacity, max threads, requests count |
+| Puma stats | Thread pool counters from `Puma::Server::STAT_METHODS` (`backlog`, `running`, `pool_capacity`, `busy_threads`, `backlog_max`, `max_threads`, `requests_count`, `reactor_max`) |
 | Process metrics | RSS (bytes) and CPU percent via `ps` on Linux/macOS |
 | Cluster aggregation | Master merges enhanced stats synced from each worker ping |
 | Terminal CLI | Live dashboard, watch mode, host top view (`puma-enhanced-stats`) |
@@ -28,7 +28,7 @@ The gem activates when loaded via Bundler. No `puma.rb` entry is required for de
 Add the gem to your Gemfile:
 
 ```ruby
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.3.0"
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.3.1"
 ```
 
 Or track `main` / a branch:
@@ -83,8 +83,10 @@ The gem installs **`puma-enhanced-stats`**, a full-terminal dashboard that consu
 Connection settings are read from `config/puma.rb` (and the configured state file when present), like `pumactl`. Run the command from your application directory.
 
 ```bash
-bundle exec puma-enhanced-stats --watch
+bundle exec puma-enhanced-stats
 ```
+
+Watch mode is the default. Use `-W` / `--no-watch` for a one-shot snapshot. `--json` always prints once and exits.
 
 **Prerequisites:** Puma with `activate_control_app` (see [Control app setup](#control-app-setup)).
 
@@ -97,7 +99,7 @@ bundle exec puma-enhanced-stats --watch
 | **PROCESSES** | default (`--no-top` hides) | Table of Puma master + worker PIDs with `%CPU`, `%MEM`, RSS, thread pool, backlog — sorted by `--sort` |
 | **SUMMARY** | always | Cluster-wide backlog, threads in use, pool capacity free, in-flight count |
 | **WORKER** | always | Per-worker pool bars + in-flight request table (one box per worker, stacked) |
-| **FOOTER** | `--watch` | Refresh interval (`worker_check_interval_seconds` from server) and hints |
+| **FOOTER** | default (`-W` / `--no-watch` hides) | Refresh interval (`worker_check_interval_seconds` from server) and hints |
 
 **PROCESSES (`--top`)** is a `top`-style process list for the Puma processes on the machine where you run the CLI. Rows come from enhanced-stats worker PIDs plus the master PID (from the state file). `%CPU` / `%MEM` / `RSS` are enriched via `ps`; `RUN/CAP`, `BACKLOG`, and `POOL` come from each worker's Puma stats in the JSON. The `M` marker is the cluster master. Use `--sort cpu` (or `rss`, `backlog`) to reorder this table and the worker boxes below.
 
@@ -112,11 +114,11 @@ Bars use color thresholds: green below 70%, yellow 70–90%, red above 90% or wh
 | 3 | PROCESSES | default (`--no-top` hides) |
 | 4 | SUMMARY | always |
 | 5 | WORKER 0, 1, … (stacked; side-by-side with `--compact`) | always |
-| 6 | FOOTER | `--watch` |
+| 6 | FOOTER | default (`-W` / `--no-watch` hides) |
 
-Without `--no-top`: HEADER → SYSTEM → PROCESSES → SUMMARY → WORKER(s) → FOOTER (if `--watch`).
+Without `--no-top`: HEADER → SYSTEM → PROCESSES → SUMMARY → WORKER(s) → FOOTER (unless `-W`).
 
-### Example — cluster with `--watch` (wide terminal)
+### Example — cluster watch (wide terminal)
 
 Custom fields in `puma.rb`:
 
@@ -130,11 +132,11 @@ end
 ```
 
 ```bash
-bundle exec puma-enhanced-stats --watch
+bundle exec puma-enhanced-stats
 ```
 
 ```
-╔═ PUMA ENHANCED STATS ─ v0.3.0 ══════════════════════════════════════╗
+╔═ PUMA ENHANCED STATS ─ v0.3.1 ══════════════════════════════════════╗
 ║ Mode cluster │ Puma 8.0.2 │ Ruby 3.2.2 │ Sync 5s │ Collected 14:32:05 ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
@@ -223,7 +225,7 @@ When the terminal is too narrow for flat columns, extra fields appear nested und
 Two workers side by side (requires ≥ 120 columns and at most 2 workers):
 
 ```bash
-bundle exec puma-enhanced-stats --watch --compact
+bundle exec puma-enhanced-stats --compact
 ```
 
 ```
@@ -240,14 +242,14 @@ bundle exec puma-enhanced-stats --watch --compact
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-### Example — single mode (`--no-top`, snapshot)
+### Example — single mode (`--no-top --no-watch`, snapshot)
 
 ```bash
-bundle exec puma-enhanced-stats --no-top
+bundle exec puma-enhanced-stats --no-top -W
 ```
 
 ```
-╔═ PUMA ENHANCED STATS ─ v0.3.0 ════════════════════════════════════════╗
+╔═ PUMA ENHANCED STATS ─ v0.3.1 ════════════════════════════════════════╗
 ║ Mode single │ Puma 8.0.2 │ Ruby 3.0.7 │ Sync 5s │ Collected 14:32:05  ║
 ╚═══════════════════════════════════════════════════════════════════════╝
 
@@ -282,7 +284,7 @@ Worker not yet synced in cluster:
 ┌─ WORKER 2 ─ pid 41236 ─ [CRIT] not synced ────────────────────────────┐
 │ Last ping   never                                                     │
 │ Threads     - / -   [░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░] n/a            │
-│ Hint        waiting for _enhanced_stats ping (sync 5s)                │
+│ Hint        waiting for enhanced_stats ping (sync 5s)                │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -306,15 +308,15 @@ Registry full with truncation:
 
 | Task | Command |
 |------|---------|
-| One-shot snapshot | `bundle exec puma-enhanced-stats` |
-| Live refresh | `bundle exec puma-enhanced-stats --watch` |
+| Live dashboard (default) | `bundle exec puma-enhanced-stats` |
+| One-shot snapshot | `bundle exec puma-enhanced-stats -W` |
 | Hide SYSTEM/PROCESSES | `bundle exec puma-enhanced-stats --no-top` |
 | Requests only | `bundle exec puma-enhanced-stats --request-only` |
 | Raw JSON | `bundle exec puma-enhanced-stats --json \| jq '.summary'` |
 | Single worker | `bundle exec puma-enhanced-stats --worker 1` |
 | Sort by CPU | `bundle exec puma-enhanced-stats --sort cpu` |
 | Compact grid | `bundle exec puma-enhanced-stats --compact` |
-| CI / plain text | `bundle exec puma-enhanced-stats --no-color` |
+| CI / plain text | `bundle exec puma-enhanced-stats --no-color -W` |
 
 ### Flags
 
@@ -322,16 +324,16 @@ Registry full with truncation:
 |------|-------------|
 | `-T`, `--no-top` | Hide **SYSTEM** and **PROCESSES** blocks |
 | `-C`, `--no-color` | Disable ANSI colors |
-| `--watch` | Auto-refresh using `meta.worker_check_interval_seconds` from the server |
+| `-W`, `--no-watch` | Print one snapshot and exit (watch is the default) |
 | `--request-only` | Worker summary and in-flight requests only |
 | `--compact` | Two-column worker grid (≥ 120 columns; max 2 workers) |
-| `--json` | Print raw enhanced-stats JSON |
+| `--json` | Print raw enhanced-stats JSON once and exit |
 | `--worker N` | Show only worker index `N` |
 | `-s`, `--sort FIELD` | Sort workers and PROCESSES: `cpu`, `rss`, `backlog`, or `index` (default) |
 | `-w`, `--width COLS` | Fixed terminal width (tests/CI) |
 | `-h`, `--help` | Usage |
 
-With `--watch`, the screen clears and redraws on each poll; resizing the terminal triggers an immediate redraw (`SIGWINCH` on Unix/macOS).
+By default the screen clears and redraws on each poll; resizing the terminal triggers an immediate redraw (`SIGWINCH` on Unix/macOS).
 
 ## Usage
 
@@ -365,7 +367,7 @@ end
 
 When declared, the block is required.
 
-Configure worker ping frequency with Puma's `worker_check_interval` in `config/puma.rb` (cluster mode). The CLI `--watch` refresh and JSON `meta.worker_check_interval_seconds` reflect that value.
+Configure worker ping frequency with Puma's `worker_check_interval` in `config/puma.rb` (cluster mode). The CLI refresh loop and JSON `meta.worker_check_interval_seconds` reflect that value.
 
 ```ruby
 # config/puma.rb — cluster example
@@ -428,7 +430,7 @@ The payload follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.jso
 | `summary` | Aggregated worker and in-flight request counters (`workers_reporting` counts workers with non-null `synced_at`) |
 | `workers` | Per-worker Puma stats, process metrics, and in-flight request items |
 
-Worker `synced_at` is the last cluster ping carrying `_enhanced_stats` (`null` until the first ping). In single mode it is the snapshot collection time.
+Worker `synced_at` is the last cluster ping carrying `enhanced_stats` (`null` until the first ping). In single mode it is the snapshot collection time.
 
 Example (truncated):
 
@@ -437,7 +439,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.3.0",
+    "gem_version": "0.3.1",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
@@ -457,8 +459,11 @@ Example (truncated):
       "backlog": 0,
       "running": 1,
       "pool_capacity": 5,
+      "busy_threads": 1,
+      "backlog_max": 0,
       "max_threads": 5,
-      "requests_count": 10
+      "requests_count": 10,
+      "reactor_max": 0
     },
     "process": {
       "rss_bytes": 256000000,
@@ -493,7 +498,7 @@ See [spec/fixtures/enhanced-stats-v1.sample.json](spec/fixtures/enhanced-stats-v
 | Mode | How enhanced stats are collected |
 |------|----------------------------------|
 | **single** | Master reads the live in-flight registry and samples process metrics on demand |
-| **cluster** | Each worker injects `_enhanced_stats` into its ping payload; the master merges via `WorkerHandle` |
+| **cluster** | Each worker injects `enhanced_stats` into its ping payload; the master merges via `WorkerHandle` |
 
 Cluster sync flow:
 
@@ -506,13 +511,15 @@ sequenceDiagram
 
   Worker->>WorkerWrite: ping with Puma stats
   WorkerWrite->>WorkerWrite: append registry + process metrics
-  WorkerWrite->>Master: ping JSON with _enhanced_stats
+  WorkerWrite->>Master: ping JSON with enhanced_stats
   Master->>Master: WorkerHandle stores payload
   Snapshot->>Master: build on GET /enhanced-stats
   Snapshot->>Snapshot: merge workers into JSON
 ```
 
-In cluster mode, set Puma's `worker_check_interval` in `config/puma.rb` to control how often workers ping the master (and carry `_enhanced_stats`). `before_worker_boot` clears the in-flight registry when a worker process starts.
+In cluster mode, set Puma's `worker_check_interval` in `config/puma.rb` to control how often workers ping the master (and carry `enhanced_stats`). `before_worker_boot` clears the in-flight registry when a worker process starts.
+
+`pumactl stats` and `GET /stats` remain unchanged — enhanced data is only on `GET /enhanced-stats` and `pumactl enhanced-stats`.
 
 ## Platform notes
 

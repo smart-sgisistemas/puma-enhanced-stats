@@ -8,8 +8,14 @@ module Puma
         #
         # Ratios are clamped to +0.0..1.0+. Returns +[bar_string, label]+.
         class Bar
+          # @param colors [Colors]
+          # @return [Bar]
           def initialize(colors) = @colors = colors
 
+          # @param ratio [Numeric] value in +0.0..1.0+ (clamped)
+          # @param width [Integer]
+          # @param backlog [Boolean] use queue styling when true
+          # @return [Array(String, String)] +[bar_string, label]+
           def render ratio, width:, backlog: false
             ratio = ratio.to_f.clamp(0.0, 1.0)
             filled = (ratio * width).round
