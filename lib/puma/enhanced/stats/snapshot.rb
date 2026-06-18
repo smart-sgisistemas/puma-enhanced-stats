@@ -72,7 +72,7 @@ module Puma
         # (see {Puma::Cluster#stats}), including when the worker list is empty.
         #
         # @return [Boolean]
-        def clustered? = stats.key? :worker_status
+        def clustered? = stats.key?(:worker_status)
 
         # @return [Hash{Symbol => Object}] +meta+ section
         def meta

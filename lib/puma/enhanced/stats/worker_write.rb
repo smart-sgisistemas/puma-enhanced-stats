@@ -18,7 +18,7 @@ module Puma
         # @return [void]
         def initialize(index:, master:, launcher:, pipes:, **kwargs)
           pipes = pipes.merge(worker_write: WorkerWrite.new(pipes[:worker_write]))
-          super(index:, master:, launcher:, pipes:, **kwargs)
+          super(index: index, master: master, launcher: launcher, pipes: pipes, **kwargs)
         end
       end
 
@@ -50,7 +50,7 @@ module Puma
         #
         # @param message [String]
         # @return [IO, Integer] return value of the underlying +IO#<<+
-        def <<(message) = @io << ((ping? message) ? enhance_ping(message) : message)
+        def <<(message) = @io << (ping?(message) ? enhance_ping(message) : message)
 
         # Closes the underlying pipe.
         #
