@@ -46,7 +46,8 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
     expect(payload[:summary][:requests_in_flight]).to eq(1)
     expect(payload[:workers].first[:process][:rss_bytes]).to eq(100)
     expect(payload[:workers].first[:requests][:meta][:request_limit]).to eq(100)
-    expect(payload[:workers].first[:requests][:items].first[:elapsed_ms]).to be_a(Integer)
+    expect(payload[:workers].first[:requests][:items].first[:started_at]).to be_a(String)
+    expect(payload[:workers].first[:requests][:items].first).not_to have_key(:elapsed_ms)
   end
 
   it "leaves synced_at null when cluster handles have no enhanced data" do
@@ -132,9 +133,58 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
     expect(summary).to eq(
       workers_total: 2,
       workers_reporting: 1,
+      workers_stale: 1,
       requests_in_flight: 1,
-      requests_dropped_total: 1
+      requests_dropped_total: 1,
+      requests_truncated: false,
+      backlog_total: 0,
+      busy_threads_total: 0,
+      max_threads_total: 10,
+      pool_capacity_total: 10
     )
+  end
+
+  it "aggregates puma pool metrics in summary" do
+    launcher = cluster_launcher(
+      worker_status: [
+        {
+          index: 0,
+          pid: 123,
+          last_status: { backlog: 2, running: 1, pool_capacity: 1, busy_threads: 4, max_threads: 5, requests_count: 0 }
+        },
+        {
+          index: 1,
+          pid: 124,
+          last_status: { backlog: 1, running: 0, pool_capacity: 3, busy_threads: 2, max_threads: 5, requests_count: 0 }
+        }
+      ],
+      worker_handles: [
+        double("WorkerHandle", index: 0, enhanced_stats: default_enhanced_stats(items: [])),
+        double("WorkerHandle", index: 1, enhanced_stats: default_enhanced_stats(items: []))
+      ]
+    )
+
+    summary = described_class.build(launcher)[:summary]
+
+    expect(summary[:backlog_total]).to eq(3)
+    expect(summary[:busy_threads_total]).to eq(6)
+    expect(summary[:max_threads_total]).to eq(10)
+    expect(summary[:pool_capacity_total]).to eq(4)
+  end
+
+  it "sets requests_truncated when any worker truncated fields" do
+    launcher = cluster_launcher(
+      worker_status: [{ index: 0, pid: 123, last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5 } }],
+      worker_handles: [
+        double(
+          "WorkerHandle",
+          index: 0,
+          enhanced_stats: default_enhanced_stats(truncated: true)
+        )
+      ]
+    )
+
+    expect(described_class.build(launcher)[:summary][:requests_truncated]).to be(true)
   end
 
   it "builds single mode when launcher stats are empty" do
@@ -263,37 +313,6 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
       expect(payload[:workers].size).to eq(1)
       expect(payload[:workers].first[:requests][:items].first[:path_info]).to end_with("/slow")
       expect(payload[:workers].first[:process]).to include(:rss_bytes, :cpu_percent)
-    end
-  end
-
-  describe "#elapsed_request" do
-    let(:now) { Time.utc(2026, 6, 12, 10, 0, 2) }
-    let(:snapshot) do
-      described_class.new(
-        instance_double("Launcher", config: instance_double("Config", options: {}), stats: {}),
-        now: now
-      )
-    end
-
-    it "calculates elapsed_ms from started_at" do
-      item = { id: "a", started_at: "2026-06-12T10:00:00Z", method: "GET" }
-      result = snapshot.send(:elapsed_request, item)
-
-      expect(result[:elapsed_ms]).to eq(2000)
-    end
-
-    it "overrides a custom elapsed_ms field with computed value" do
-      item = { id: "a", started_at: "2026-06-12T10:00:00Z", elapsed_ms: 999 }
-      result = snapshot.send(:elapsed_request, item)
-
-      expect(result[:elapsed_ms]).to eq(2000)
-    end
-
-    it "returns nil elapsed_ms for invalid started_at" do
-      item = { id: "a", started_at: "not-a-time" }
-      result = snapshot.send(:elapsed_request, item)
-
-      expect(result[:elapsed_ms]).to be_nil
     end
   end
 end

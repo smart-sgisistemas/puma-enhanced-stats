@@ -6,7 +6,7 @@ require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats do
   it "has a version number" do
-    expect(Puma::Enhanced::Stats::VERSION).to eq("0.3.1")
+    expect(Puma::Enhanced::Stats::VERSION).to eq("0.4.0")
   end
 
   it "defines Error" do
@@ -43,10 +43,9 @@ RSpec.describe Puma::Enhanced::Stats do
     expect(Puma::ControlCLI::PRINTABLE_COMMANDS).to include("enhanced-stats")
   end
 
-  it "inserts middleware via Railtie at the outermost and innermost layers" do
+  it "appends CurrentRequestsMiddleware via Railtie as the innermost layer" do
     middlewares = Rails.application.middleware.map(&:klass)
 
-    expect(middlewares.first).to eq(Puma::Enhanced::Stats::RequestStartMiddleware)
-    expect(middlewares.last).to eq(Puma::Enhanced::Stats::RequestsMiddleware)
+    expect(middlewares.last).to eq(Puma::Enhanced::Stats::CurrentRequestsMiddleware)
   end
 end

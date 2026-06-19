@@ -31,14 +31,26 @@
       "required": [
         "workers_total",
         "workers_reporting",
+        "workers_stale",
         "requests_in_flight",
-        "requests_dropped_total"
+        "requests_dropped_total",
+        "requests_truncated",
+        "backlog_total",
+        "busy_threads_total",
+        "max_threads_total",
+        "pool_capacity_total"
       ],
       "properties": {
         "workers_total": { "type": "integer", "minimum": 0 },
         "workers_reporting": { "type": "integer", "minimum": 0 },
+        "workers_stale": { "type": "integer", "minimum": 0 },
         "requests_in_flight": { "type": "integer", "minimum": 0 },
-        "requests_dropped_total": { "type": "integer", "minimum": 0 }
+        "requests_dropped_total": { "type": "integer", "minimum": 0 },
+        "requests_truncated": { "type": "boolean" },
+        "backlog_total": { "type": "integer", "minimum": 0 },
+        "busy_threads_total": { "type": "integer", "minimum": 0 },
+        "max_threads_total": { "type": "integer", "minimum": 0 },
+        "pool_capacity_total": { "type": "integer", "minimum": 0 }
       }
     },
     "workers": {
@@ -101,7 +113,6 @@
       "properties": {
         "id": { "type": "string" },
         "started_at": { "type": "string", "format": "date-time" },
-        "elapsed_ms": { "type": ["integer", "null"] },
         "method": { "type": "string" },
         "path_info": { "type": "string" },
         "remote_ip": { "type": "string" },

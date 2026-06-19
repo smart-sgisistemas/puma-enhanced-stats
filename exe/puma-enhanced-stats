@@ -1,8 +1,0 @@
-#!/usr/bin/env ruby
-# frozen_string_literal: true
-
-# Terminal dashboard for enhanced-stats JSON.
-# Installed as +puma-enhanced-stats+ when the gem is built.
-require "puma/enhanced/stats/cli"
-
-exit Puma::Enhanced::Stats::CLI::Runner.run(ARGV)

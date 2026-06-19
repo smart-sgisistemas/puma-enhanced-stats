@@ -12,6 +12,7 @@ module Puma
         attr_reader request_limit: Integer
         attr_reader limit_policy: Symbol
         attr_reader max_field_length: Integer
+        attr_reader truncate_suffix: String
         attr_reader fields: { request: Hash[String, Field], session: Hash[String, Field] }
 
         def self.default: () -> Configuration
@@ -22,6 +23,7 @@ module Puma
         def request_limit=: (Integer | String value) -> Integer
         def limit_policy=: (Symbol | String value) -> Symbol
         def max_field_length=: (Integer | String value) -> Integer
+        def truncate_suffix=: (String? value) -> String
       end
 
       class Field
@@ -48,12 +50,7 @@ module Puma
         def snapshot: () -> Hash[Symbol, untyped]
       end
 
-      class RequestStartMiddleware
-        def initialize: (#call app) -> void
-        def call: (Hash[untyped, untyped] env) -> Array[untyped]
-      end
-
-      class RequestsMiddleware
+      class CurrentRequestsMiddleware
         def initialize: (#call app) -> void
         def call: (Hash[untyped, untyped] env) -> Array[untyped]
       end
@@ -103,45 +100,13 @@ module Puma
           def request_limit: (Integer | String value) -> Integer
           def limit_policy: (Symbol | String value) -> Symbol
           def max_field_length: (Integer | String value) -> Integer
+          def truncate_suffix: (String? value) -> String
           def request: (*Symbol | String name) ?{ (Hash[untyped, untyped] env) -> untyped } -> void
           def session: (*Symbol | String name) ?{ (Hash[untyped, untyped] rack_session) -> untyped } -> void
         end
       end
 
       class Railtie < ::Rails::Railtie
-      end
-
-      module CLI
-        class Options
-          attr_accessor no_watch: bool
-          attr_accessor no_top: bool
-          attr_accessor json: bool
-          attr_accessor compact: bool
-          attr_accessor width: Integer?
-          attr_accessor worker: Integer?
-          attr_accessor sort: String
-          attr_accessor request_only: bool
-
-          def top?: () -> bool
-          def watch?: () -> bool
-        end
-
-        class Runner
-          def self.run: (Array[String] argv) -> Integer
-        end
-
-        class Fetcher
-          def initialize: (url: String, ?token: String?) -> void
-          def fetch: () -> Hash[Symbol, untyped]
-        end
-
-        class Terminal
-          def self.size: () -> [Integer, Integer]
-          def self.tty?: () -> bool
-          def self.clear: () -> void
-          def self.trap_winch!: () -> void
-          def self.reset_resize!: () -> void
-        end
       end
     end
   end

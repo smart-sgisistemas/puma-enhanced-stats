@@ -148,44 +148,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
   end
 
   describe "started_at" do
-    it "uses HTTP_X_REQUEST_START when present" do
-      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234.567")
-
-      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234.567).utc.iso8601(6))
-    end
-
-    it "parses millisecond timestamps from HTTP_X_REQUEST_START" do
-      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234567")
-
-      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234.567).utc.iso8601(6))
-    end
-
-    it "parses integer second timestamps from HTTP_X_REQUEST_START" do
-      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
-
-      expect(current_requests.snapshot[:items].first[:started_at]).to eq(Time.at(1718381234).utc.iso8601(6))
-    end
-
-    it "falls back to the current time when HTTP_X_REQUEST_START is unparseable" do
-      freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
-      allow(Time).to receive(:now).and_return(freeze_time)
-
-      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=not-a-timestamp")
-
-      expect(current_requests.snapshot[:items].first[:started_at]).to eq(freeze_time.utc.iso8601(6))
-    end
-
-    it "falls back to the current time when HTTP_X_REQUEST_START parsing raises" do
-      freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
-      allow(Time).to receive(:now).and_return(freeze_time)
-      allow(Time).to receive(:at).and_raise(StandardError)
-
-      current_requests.register env.merge("HTTP_X_REQUEST_START" => "t=1718381234")
-
-      expect(current_requests.snapshot[:items].first[:started_at]).to eq(freeze_time.utc.iso8601(6))
-    end
-
-    it "falls back to the current time when the header is missing" do
+    it "uses the current UTC time" do
       freeze_time = Time.utc(2026, 6, 16, 12, 0, 0)
       allow(Time).to receive(:now).and_return(freeze_time)
 
@@ -293,7 +256,8 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
 
       snapshot = current_requests.snapshot
       item = snapshot[:items].first
-      expect(item[:path_info].length).to be <= 5
+      expect(item[:path_info]).to eq("/ver…")
+      expect(item[:path_info].length).to eq(5)
       expect(snapshot[:truncated]).to be(true)
     end
 
@@ -302,8 +266,23 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       current_requests.register env.merge("PATH_INFO" => "café-long")
 
       item = current_requests.snapshot[:items].first
-      expect(item[:path_info]).to eq("caf")
+      expect(item[:path_info]).to eq("ca…")
       expect(item[:path_info].valid_encoding?).to be(true)
+    end
+
+    it "always appends the suffix, even at the minimum field length" do
+      current_config.max_field_length = 1
+      current_requests.register env.merge("PATH_INFO" => "abcdef")
+
+      expect(current_requests.snapshot[:items].first[:path_info]).to eq("…")
+    end
+
+    it "truncates without a suffix when truncate_suffix is empty" do
+      current_config.max_field_length = 5
+      current_config.truncate_suffix = ""
+      current_requests.register env.merge("PATH_INFO" => "/very-long-path")
+
+      expect(current_requests.snapshot[:items].first[:path_info]).to eq("/very")
     end
 
     it "resets truncated after snapshot" do

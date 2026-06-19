@@ -5,8 +5,7 @@ require_relative "stats/version"
 require_relative "stats/field"
 require_relative "stats/configuration"
 require_relative "stats/current_requests"
-require_relative "stats/request_start_middleware"
-require_relative "stats/requests_middleware"
+require_relative "stats/current_requests_middleware"
 require_relative "stats/process_metrics"
 require_relative "stats/snapshot"
 require_relative "stats/status"
@@ -40,7 +39,7 @@ module Puma
     #
     # At boot, {Stats::Launcher} assigns +options[:enhanced_stats]+ (or
     # {Stats::Configuration.default}) to {Stats::CurrentRequests}. In-flight
-    # requests are tracked by {Stats::RequestsMiddleware}; snapshots are
+    # requests are tracked by {Stats::CurrentRequestsMiddleware}; snapshots are
     # exposed via +GET /enhanced-stats+ and +pumactl enhanced-stats+.
     #
     # @example Fetch JSON from a running server

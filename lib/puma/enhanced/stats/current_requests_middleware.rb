@@ -17,7 +17,7 @@ module Puma
       #   CurrentRequests.register env   # on entry
       #   @app.call env                  # Rails handles the request
       #   CurrentRequests.unregister env # always, via ensure
-      class RequestsMiddleware
+      class CurrentRequestsMiddleware
         # @param app [#call] downstream Rack application
         def initialize(app) = @app = app
 

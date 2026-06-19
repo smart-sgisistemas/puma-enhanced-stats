@@ -45,6 +45,12 @@ module Puma
           # @return [Integer]
           def max_field_length(value) = @configuration.max_field_length = value
 
+          # Sets {Configuration#truncate_suffix}.
+          #
+          # @param value [String, #to_s]
+          # @return [String]
+          def truncate_suffix(value) = @configuration.truncate_suffix = value
+
           # Registers request field extractors. See {Configuration#register_fields}.
           #
           # @param names [Array<Symbol, String>]

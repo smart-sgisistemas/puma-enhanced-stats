@@ -21,6 +21,19 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     expect { config.max_field_length = 0 }.to raise_error Puma::Enhanced::Stats::Error, /max_field_length/
   end
 
+  it "defaults truncate_suffix to the unicode ellipsis" do
+    expect(config.truncate_suffix).to eq(Puma::Enhanced::Stats::Configuration::DEFAULT_TRUNCATE_SUFFIX)
+    expect(config.truncate_suffix).to eq("…")
+  end
+
+  it "accepts nil and empty truncate_suffix" do
+    config.truncate_suffix = nil
+    expect(config.truncate_suffix).to eq("")
+
+    config.truncate_suffix = ""
+    expect(config.truncate_suffix).to eq("")
+  end
+
   it "overrides default request fields with a later definition" do
     expect(config.fields_for(:request).size).to eq 3
 

@@ -12,7 +12,7 @@ module Puma
       #
       # @example Cluster boot sequence
       #   launcher.run
-      #   # => CurrentRequests.config = enhanced_config
+      #   # => CurrentRequests.config = ...
       #   # => before_worker_boot { CurrentRequests.reset! }
       module Launcher
         # Cluster worker handles for internal snapshot assembly (+nil+ in single mode).
@@ -26,8 +26,6 @@ module Puma
         #
         # @return [void]
         def run
-          enhanced_config = config.options[:enhanced_stats] || Configuration.default
-
           if clustered?
             config.configure do |_, _, default|
               default.before_worker_boot do
@@ -36,7 +34,7 @@ module Puma
             end
           end
 
-          CurrentRequests.config = enhanced_config
+          CurrentRequests.config = config.options[:enhanced_stats] || Configuration.default
 
           super
         end

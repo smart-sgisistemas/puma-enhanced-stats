@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-RSpec.describe Puma::Enhanced::Stats::RequestsMiddleware do
+RSpec.describe Puma::Enhanced::Stats::CurrentRequestsMiddleware do
   let(:current_requests) { Puma::Enhanced::Stats::CurrentRequests }
   let(:env) do
     Rack::MockRequest.env_for("/", "REMOTE_ADDR" => "127.0.0.1").merge(

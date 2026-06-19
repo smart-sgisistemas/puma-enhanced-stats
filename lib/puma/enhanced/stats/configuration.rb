@@ -20,14 +20,17 @@ module Puma
       #   enhanced_stats do
       #     request_limit 50
       #     limit_policy :reject_new
+      #     max_field_length 256
+      #     truncate_suffix "…"
       #     request :user_agent
       #     session :user_id
       #   end
       class Configuration
         # Allowed values for {Configuration#limit_policy=}.
-        #
-        # @return [Array<Symbol>]
         LIMIT_POLICIES = %i[keep_longest reject_new].freeze
+
+        # Default for {#truncate_suffix} (U+2026 horizontal ellipsis).
+        DEFAULT_TRUNCATE_SUFFIX = "…"
 
         # @!attribute [rw] request_limit
         #   Maximum in-flight requests tracked per worker.
@@ -35,9 +38,13 @@ module Puma
         #   +:keep_longest+ evicts the newest entry when full; +:reject_new+ drops new ones.
         # @!attribute [rw] max_field_length
         #   Maximum character length for extracted string values.
+        # @!attribute [rw] truncate_suffix
+        #   Suffix appended when a field value exceeds {#max_field_length}.
+        #   Coerced with +to_s+; +nil+ becomes +""+. An empty suffix truncates
+        #   at {#max_field_length} with no marker.
         # @!attribute [r] fields
-        #   @return [Hash{Symbol => Hash{String => Field}}] namespaces +:request+ and +:session+
-        attr_reader :request_limit, :limit_policy, :max_field_length, :fields
+        #   Registered {Field} instances per namespace (+:request+, +:session+).
+        attr_reader :request_limit, :limit_policy, :max_field_length, :truncate_suffix, :fields
 
         class << self
           # Shared defaults used when +enhanced_stats+ is omitted from +puma.rb+.
@@ -47,8 +54,6 @@ module Puma
         end
 
         # Registers built-in request fields and applies default limits.
-        #
-        # @return [void]
         def initialize
           @fields = {
             request: {
@@ -61,6 +66,7 @@ module Puma
           self.request_limit = 100
           self.limit_policy = :keep_longest
           self.max_field_length = 256
+          self.truncate_suffix = DEFAULT_TRUNCATE_SUFFIX
         end
 
         # Sets the maximum number of in-flight entries per worker.
@@ -94,6 +100,13 @@ module Puma
           raise Error, "max_field_length must be > 0" unless max_field_length.positive?
 
           @max_field_length = max_field_length
+        end
+
+        # Sets the suffix appended when a field value is truncated.
+        #
+        # @param value [String, nil, #to_s] coerced with +to_s+ (+nil+ → +""+)
+        def truncate_suffix= value
+          @truncate_suffix = value.to_s
         end
 
         # Returns registered {Field} instances for a namespace in insertion order.

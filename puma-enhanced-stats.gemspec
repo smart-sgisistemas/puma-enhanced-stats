@@ -35,8 +35,6 @@ Gem::Specification.new do |spec|
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "pastel", "~> 0.8"
-  spec.add_dependency "tty-screen", "~> 0.8"
   spec.add_dependency "puma", ">= 8.0", "< 9"
   spec.add_dependency "rails", ">= 7.0", "< 8"
 

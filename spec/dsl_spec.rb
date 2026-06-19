@@ -29,16 +29,18 @@ RSpec.describe Puma::Enhanced::Stats::DSL do
       expect(stats_config.fields_for(:request).map(&:name)).to include("path")
     end
 
-    it "accepts request_limit, limit_policy, and max_field_length" do
+    it "accepts request_limit, limit_policy, max_field_length, and truncate_suffix" do
       stats_config = stats_config_from(build_puma_config do
         request_limit 50
         limit_policy :reject_new
         max_field_length 512
+        truncate_suffix "..."
       end)
 
       expect(stats_config.request_limit).to eq 50
       expect(stats_config.limit_policy).to eq :reject_new
       expect(stats_config.max_field_length).to eq 512
+      expect(stats_config.truncate_suffix).to eq "..."
     end
 
     it "registers session fields" do

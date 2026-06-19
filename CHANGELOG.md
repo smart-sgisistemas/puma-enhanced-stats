@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+## 0.4.0 — 2026-06-18
+
+### Removed
+
+- Terminal CLI (`puma-enhanced-stats` executable, stub server, `bin/dev-cli`, and `lib/puma/enhanced/stats/cli/`) — **temporary**; the dashboard CLI will return in the next release
+- Dependencies: `pastel`, `tty-screen`
+- `RequestStartMiddleware` and `HTTP_X_REQUEST_START` parsing for `started_at`
+
+### Added
+
+- `truncate_suffix` in `enhanced_stats` DSL (default `…`) for truncated field values
+- `summary` pool aggregates: `backlog_total`, `busy_threads_total`, `max_threads_total`, `pool_capacity_total`
+- `summary.workers_stale` and `summary.requests_truncated`
+
+### Changed
+
+- Renamed `RequestsMiddleware` to `CurrentRequestsMiddleware`
+- `started_at` on in-flight entries uses `Time.now.utc` at registration time
+- Extended `summary` with cluster-wide Puma pool and registry health fields
+- Request items expose `started_at` only (no computed `elapsed_ms` in snapshot output)
+
 ## 0.3.1 — 2026-06-17
 
 ### Changed

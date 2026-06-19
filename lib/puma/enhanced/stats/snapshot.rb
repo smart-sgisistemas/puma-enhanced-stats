@@ -27,11 +27,11 @@ module Puma
         # @!attribute [r] stats
         #   @return [Hash{Symbol => Object}] raw Puma launcher stats
         # @!attribute [r] now
-        #   @return [Time] UTC timestamp used for +collected_at+ and +elapsed_ms+
+        #   @return [Time] UTC timestamp used for +collected_at+
         attr_reader :config, :stats, :now
 
         # @param launcher [Puma::Launcher]
-        # @param now [Time] collection timestamp (UTC); drives +collected_at+ and +elapsed_ms+
+        # @param now [Time] collection timestamp (UTC); drives +collected_at+
         # @return [void]
         def initialize launcher, now: Time.now.utc
           @now = now
@@ -89,11 +89,20 @@ module Puma
         # @param enhanced_workers [Array<Hash{Symbol => Object}>]
         # @return [Hash{Symbol => Object}] +summary+ section
         def summary enhanced_workers
+          workers_total = enhanced_workers.size
+          workers_reporting = enhanced_workers.count { |worker| worker[:synced_at] }
+
           {
-            workers_total: enhanced_workers.size,
-            workers_reporting: enhanced_workers.count { |worker| worker[:synced_at] },
+            workers_total: workers_total,
+            workers_reporting: workers_reporting,
+            workers_stale: workers_total - workers_reporting,
             requests_in_flight: enhanced_workers.sum { |worker| worker.dig(:requests, :meta, :count) || 0 },
-            requests_dropped_total: enhanced_workers.sum { |worker| worker.dig(:requests, :meta, :dropped_count) || 0 }
+            requests_dropped_total: enhanced_workers.sum { |worker| worker.dig(:requests, :meta, :dropped_count) || 0 },
+            requests_truncated: enhanced_workers.any? { |worker| worker.dig(:requests, :meta, :truncated) },
+            backlog_total: enhanced_workers.sum { |worker| worker.dig(:puma, :backlog) || 0 },
+            busy_threads_total: enhanced_workers.sum { |worker| worker.dig(:puma, :busy_threads) || 0 },
+            max_threads_total: enhanced_workers.sum { |worker| worker.dig(:puma, :max_threads) || 0 },
+            pool_capacity_total: enhanced_workers.sum { |worker| worker.dig(:puma, :pool_capacity) || 0 }
           }
         end
 
@@ -137,18 +146,10 @@ module Puma
                   truncated: enhanced[:truncated] || false,
                   dropped_count: enhanced[:dropped_count] || 0
                 },
-                items: enhanced[:items].map { |item| elapsed_request item }
+                items: enhanced[:items]
               }
             }
           end
-        end
-
-        # @param item [Hash{Symbol => Object}]
-        # @return [Hash{Symbol => Object}]
-        def elapsed_request item
-          item.merge elapsed_ms: ((now - Time.iso8601(item[:started_at])) * 1000).to_i
-        rescue ArgumentError
-          item.merge elapsed_ms: nil
         end
       end
     end

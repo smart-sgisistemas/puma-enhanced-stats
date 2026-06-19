@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.3.1",
+    "gem_version": "0.4.0",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
@@ -11,8 +11,14 @@
   "summary": {
     "workers_total": 1,
     "workers_reporting": 1,
+    "workers_stale": 0,
     "requests_in_flight": 1,
-    "requests_dropped_total": 0
+    "requests_dropped_total": 0,
+    "requests_truncated": false,
+    "backlog_total": 0,
+    "busy_threads_total": 1,
+    "max_threads_total": 5,
+    "pool_capacity_total": 5
   },
   "workers": [{
     "index": 0,
@@ -43,7 +49,6 @@
       "items": [{
         "id": "abc",
         "started_at": "2026-06-12T09:59:20Z",
-        "elapsed_ms": 45000,
         "method": "GET",
         "path_info": "/reports",
         "remote_ip": "127.0.0.1",
