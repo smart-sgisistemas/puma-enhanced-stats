@@ -26,7 +26,7 @@ The gem activates when loaded via Bundler. No `puma.rb` entry is required for de
 Add the gem to your Gemfile:
 
 ```ruby
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.4.0"
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.4.1"
 ```
 
 Or track `main` / a branch:
@@ -180,7 +180,7 @@ Example (truncated):
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.4.0",
+    "gem_version": "0.4.1",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",

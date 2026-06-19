@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.1 — 2026-06-18
+
+### Fixed
+
+- Docker image build after CLI removal (`COPY exe/` no longer referenced)
+
 ## 0.4.0 — 2026-06-18
 
 ### Removed
