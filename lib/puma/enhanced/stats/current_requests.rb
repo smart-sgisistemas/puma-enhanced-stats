@@ -125,24 +125,26 @@ module Puma
         # * +items+ — array of in-flight entry hashes
         # * +dropped_count+ — registrations rejected or evicted since the last snapshot
         # * +truncated+ — whether any stored field was truncated since the last snapshot
-        # * +process+ — RSS and CPU for the current worker ({ProcessMetrics.read})
+        # * +process+ — RSS and CPU for the current worker ({ProcessMetrics.read});
+        #   sampled **outside** the registry mutex
         #
         # Resets +dropped_count+ and +truncated+ after reading so each worker ping
         # reports a delta for the sync interval.
         #
         # @return [Hash{Symbol => Object}]
         def snapshot
-          @mutex.synchronize do
+          state = @mutex.synchronize do
             {
               items: @entries.values,
               dropped_count: @dropped_count,
-              truncated: @truncated,
-              process: ProcessMetrics.read
+              truncated: @truncated
             }.tap do
               @dropped_count = 0
               @truncated = false
             end
           end
+
+          state.merge process: ProcessMetrics.read
         end
 
         private

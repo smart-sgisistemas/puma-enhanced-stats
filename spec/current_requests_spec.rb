@@ -337,6 +337,29 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     end
   end
 
+  describe "snapshot assembly" do
+    it "samples process metrics outside the registry mutex" do
+      current_requests.register env
+
+      mutex = registry.instance_variable_get(:@mutex)
+      order = []
+
+      allow(mutex).to receive(:synchronize).and_wrap_original do |original, *args, &block|
+        order << :lock
+        original.call(*args, &block).tap { order << :unlock }
+      end
+
+      allow(Puma::Enhanced::Stats::ProcessMetrics).to receive(:read) do
+        order << :sample
+        Puma::Enhanced::Stats::ProcessMetrics::EMPTY
+      end
+
+      current_requests.snapshot
+
+      expect(order).to eq(%i[lock unlock sample])
+    end
+  end
+
   describe "snapshot meta counters" do
     it "resets dropped_count after snapshot" do
       current_config.limit_policy = :reject_new

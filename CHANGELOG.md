@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.4.2 — 2026-06-19
+
+### Fixed
+
+- `CurrentRequests#snapshot` samples process metrics (`ps`) outside the registry mutex, reducing lock contention under load
+
 ## 0.4.1 — 2026-06-18
 
 ### Fixed
