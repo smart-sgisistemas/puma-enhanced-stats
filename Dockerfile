@@ -21,7 +21,6 @@ WORKDIR /app
 
 COPY Gemfile Gemfile.lock puma-enhanced-stats.gemspec ./
 COPY lib/ lib/
-COPY exe/ exe/
 COPY schema/ schema/
 
 RUN bundle install
