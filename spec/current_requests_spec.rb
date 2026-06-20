@@ -187,7 +187,8 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
       expect(entry).to include(
         method: "GET",
         remote_ip: "10.0.0.5",
-        path_info: "/reports"
+        path_info: "/reports",
+        session: {}
       )
       expect(entry[:started_at]).not_to be_nil
       expect(entry[:id]).not_to be_nil
@@ -349,7 +350,7 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
         original.call(*args, &block).tap { order << :unlock }
       end
 
-      allow(Puma::Enhanced::Stats::ProcessMetrics).to receive(:read) do
+      allow(Puma::Enhanced::Stats::ProcessMetrics).to receive(:snapshot) do
         order << :sample
         Puma::Enhanced::Stats::ProcessMetrics::EMPTY
       end

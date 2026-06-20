@@ -26,5 +26,10 @@ task default: :spec
 
 desc "Generate YARD API documentation"
 task :yard do
-  sh "bundle exec yard doc lib"
+  sh "bundle exec yard doc"
+end
+
+desc "Validate RBS signatures"
+task :rbs do
+  sh "bundle exec rbs validate sig"
 end

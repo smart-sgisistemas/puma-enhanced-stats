@@ -8,8 +8,10 @@ Gem::Specification.new do |spec|
   spec.authors = ["Ederson José Fuzinato"]
   spec.email = ["ederson.fuzinato@sgisistemas.com.br"]
 
-  spec.summary = "Enhanced statistics for Puma on Rails."
-  spec.description = "Collect in-flight requests and worker process metrics from Rails apps via Puma control app."
+  spec.summary = "In-flight request and worker metrics for Puma via the control app."
+  spec.description = "Tracks in-flight HTTP requests per Puma worker and exposes them with " \
+                     "thread-pool and process metrics through GET /enhanced-stats and " \
+                     "pumactl enhanced-stats on Rails 7+ applications."
   spec.homepage = "https://github.com/smart-sgisistemas/puma-enhanced-stats"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
@@ -18,11 +20,13 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
+  spec.metadata["documentation_uri"] = "#{spec.homepage}/blob/main/docs/README.md"
 
   spec.files = Dir.chdir(__dir__) do
     tracked = `git ls-files -z 2>/dev/null`.split("\x0").reject(&:empty?)
     files = if tracked.empty?
-              Dir.glob("{lib,exe,schema}/**/*").select { |f| File.file?(f) }
+              Dir.glob("{lib,schema,docs}/**/*").select { |f| File.file?(f) } +
+                %w[README.md LICENSE.txt CHANGELOG.md]
             else
               tracked
             end
@@ -31,8 +35,6 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github .idea/ appveyor Gemfile])
     end
   end
-  spec.bindir = "exe"
-  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
   spec.add_dependency "puma", ">= 8.0", "< 9"
@@ -43,4 +45,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec", "~> 3.0"
   spec.add_development_dependency "simplecov", "~> 0.22"
   spec.add_development_dependency "yard", "~> 0.9"
+  spec.add_development_dependency "rbs", ">= 3.0"
 end

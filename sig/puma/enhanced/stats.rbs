@@ -6,6 +6,18 @@ module Puma
       class Error < StandardError
       end
 
+      interface _SnapshotProcess
+        def rss_bytes: () -> Integer?
+        def cpu_percent: () -> Float?
+      end
+
+      interface _RegistrySnapshot
+        def items: () -> Array[Hash[Symbol, untyped]]
+        def dropped_count: () -> Integer
+        def truncated: () -> bool
+        def process: () -> _SnapshotProcess
+      end
+
       class Configuration
         LIMIT_POLICIES: Array[Symbol]
 
@@ -41,13 +53,13 @@ module Puma
         def self.register: (Hash[untyped, untyped] env) -> void
         def self.unregister: (Hash[untyped, untyped] env) -> void
         def self.config=: (Configuration value) -> Configuration
-        def self.snapshot: () -> Hash[Symbol, untyped]
+        def self.snapshot: () -> _RegistrySnapshot
 
         def config=: (Configuration value) -> Configuration
         def register: (Hash[untyped, untyped] env) -> void
         def unregister: (Hash[untyped, untyped] env) -> void
         def reset!: () -> void
-        def snapshot: () -> Hash[Symbol, untyped]
+        def snapshot: () -> _RegistrySnapshot
       end
 
       class CurrentRequestsMiddleware
@@ -56,12 +68,19 @@ module Puma
       end
 
       class ProcessMetrics
+        include Singleton
+
         EMPTY: Hash[Symbol, Integer | Float | nil]
 
-        def self.read: () -> Hash[Symbol, Integer | Float | nil]
+        def self.snapshot: () -> _SnapshotProcess
+
+        def initialize: () -> void
+        def snapshot: () -> _SnapshotProcess
       end
 
       class Snapshot
+        SCHEMA_VERSION: Integer
+
         attr_reader config: Configuration
         attr_reader stats: Hash[Symbol, untyped]
         attr_reader now: Time
@@ -74,7 +93,7 @@ module Puma
 
       class WorkerWrite
         def initialize: (IO io) -> void
-        def <<: (String message) -> void
+        def <<: (String message) -> untyped
         def close: () -> void
       end
 
@@ -82,14 +101,25 @@ module Puma
         def workers: () -> Array[Puma::Cluster::WorkerHandle]?
         def run: () -> untyped
       end
+
       module Status
         def call: (Hash[untyped, untyped] env) -> Array[untyped]
       end
 
       module WorkerHandle
+        attr_reader enhanced_stats: Hash[Symbol, untyped]
+
+        def ping!: (String status) -> void
       end
 
       module ClusterWorker
+        def initialize: (
+          index: Integer,
+          master: IO,
+          launcher: Puma::Launcher,
+          pipes: Hash[Symbol, IO],
+          **untyped
+        ) -> void
       end
 
       module DSL

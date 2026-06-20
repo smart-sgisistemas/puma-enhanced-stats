@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.4.3 — 2026-06-20
+
+### Changed
+
+- **Process metrics** — `ProcessMetrics` is now a singleton; Linux-only sampling via `/proc` (RSS) and `Process.times` (CPU). `cpu_percent` is interval-based between snapshots (same idea as `top`); the first snapshot returns `null`. Renamed `ProcessMetrics.read` to `ProcessMetrics.snapshot`.
+- **Default request fields** — `id` and `started_at` are configured extractors alongside `method`, `remote_ip`, and `path_info` (override via DSL).
+- **JSON contract v1** — `requests.items[].session` is always present; `{}` when no session extractors are configured.
+- Documentation refresh: `docs/` guides, README, CONTRIBUTING, schema descriptions, YARD and RBS updates.
+- CI Docker image: removed `procps` (process metrics no longer spawn `ps`).
+
+### Removed
+
+- Process metrics on macOS and other non-Linux platforms (always `null` elsewhere).
+
 ## 0.4.2 — 2026-06-19
 
 ### Fixed
@@ -37,6 +51,8 @@
 
 ## 0.3.1 — 2026-06-17
 
+> **Note:** CLI features described in 0.2.x–0.3.x releases were removed in 0.4.0. See README.
+
 ### Changed
 
 - `Snapshot` refactored to an instance API (`Snapshot.new(launcher).build`); cluster enhanced data merges from `WorkerHandle#enhanced_stats` via `Launcher#workers` without mutating `Puma::Cluster#stats` — `pumactl stats` output stays Puma-native
@@ -50,6 +66,8 @@
 - Integration spec asserts `GET /stats` does not include `enhanced_stats`
 
 ## 0.3.0 — 2026-06-17
+
+> **Note:** CLI features below were removed in 0.4.0. See README.
 
 ### Added
 
@@ -70,11 +88,15 @@
 
 ## 0.2.1 — 2026-06-16
 
+> **Note:** CLI features below were removed in 0.4.0. See README.
+
 ### Changed
 
 - README: dedicated **CLI** section with layout explanation and terminal output examples
 
 ## 0.2.0 — 2026-06-16
+
+> **Note:** CLI features below were removed in 0.4.0. See README.
 
 ### Added
 

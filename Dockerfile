@@ -7,7 +7,6 @@ RUN apk add --no-cache \
     bash \
     build-base \
     git \
-    procps \
     tzdata \
     yaml-dev \
     libxml2-dev \

@@ -5,7 +5,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
 
   it "registers default request fields" do
     names = config.fields_for(:request).map(&:name)
-    expect(names).to contain_exactly("method", "remote_ip", "path_info")
+    expect(names).to contain_exactly("id", "started_at", "method", "remote_ip", "path_info")
   end
 
   it "validates request_limit and limit_policy in setters" do
@@ -35,7 +35,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
   end
 
   it "overrides default request fields with a later definition" do
-    expect(config.fields_for(:request).size).to eq 3
+    expect(config.fields_for(:request).size).to eq 5
 
     Puma::Enhanced::Stats::DSL::Builder.new(config).instance_eval do
       request :method do |_env|
@@ -43,7 +43,7 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       end
     end
 
-    expect(config.fields_for(:request).size).to eq 3
+    expect(config.fields_for(:request).size).to eq 5
 
     env = {
       "REQUEST_METHOD" => "GET",

@@ -22,6 +22,12 @@ RSpec.describe "enhanced-stats-v1 schema" do
     expect(schema.validate(invalid).to_a).not_to be_empty
   end
 
+  it "rejects request items without session" do
+    invalid = JSON.parse(JSON.generate(sample))
+    invalid["workers"].first["requests"]["items"].first.delete("session")
+    expect(schema.validate(invalid).to_a).not_to be_empty
+  end
+
   it "validates Snapshot.build output for single mode" do
     launcher = instance_double(
       "Launcher",
@@ -38,11 +44,22 @@ RSpec.describe "enhanced-stats-v1 schema" do
 
     Puma::Enhanced::Stats::CurrentRequests.reset!
 
+    env = {
+      "REQUEST_METHOD" => "GET",
+      "PATH_INFO" => "/",
+      "REMOTE_ADDR" => "127.0.0.1",
+      "action_dispatch.request_id" => "contract-request-id"
+    }
+    Puma::Enhanced::Stats::CurrentRequests.register(env)
+
     payload = Puma::Enhanced::Stats::Snapshot.build(launcher)
     json = JSON.parse(JSON.generate(payload))
 
     expect(json["workers"].first["puma"].keys).to match_array(Puma::Server::STAT_METHODS.map(&:to_s))
+    expect(json["workers"].first["requests"]["items"].first["session"]).to eq({})
     expect(schema.validate(json).to_a).to be_empty
+
+    Puma::Enhanced::Stats::CurrentRequests.reset!
   end
 
   it "validates Snapshot.build output for cluster mode" do

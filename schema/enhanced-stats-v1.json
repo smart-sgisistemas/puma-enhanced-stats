@@ -2,13 +2,19 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/smart-sgisistemas/puma-enhanced-stats/schema/enhanced-stats-v1.json",
   "title": "Puma Enhanced Stats v1",
+  "description": "JSON contract for GET /enhanced-stats and pumactl enhanced-stats. See docs/json-contract.md.",
   "type": "object",
   "required": ["schema_version", "meta", "summary", "workers"],
   "additionalProperties": false,
   "properties": {
-    "schema_version": { "type": "integer", "const": 1 },
+    "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version; always 1 for this schema."
+    },
     "meta": {
       "type": "object",
+      "description": "Collection metadata for this response.",
       "required": [
         "collected_at",
         "gem_version",
@@ -18,16 +24,38 @@
         "worker_check_interval_seconds"
       ],
       "properties": {
-        "collected_at": { "type": "string", "format": "date-time" },
-        "gem_version": { "type": "string" },
-        "puma_version": { "type": "string" },
-        "ruby_version": { "type": "string" },
-        "mode": { "type": "string", "enum": ["single", "cluster"] },
-        "worker_check_interval_seconds": { "type": "integer", "minimum": 1 }
+        "collected_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC timestamp when Snapshot#build ran on the master."
+        },
+        "gem_version": {
+          "type": "string",
+          "description": "puma-enhanced-stats gem version."
+        },
+        "puma_version": {
+          "type": "string",
+          "description": "Running Puma version."
+        },
+        "ruby_version": {
+          "type": "string",
+          "description": "Running Ruby version."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["single", "cluster"],
+          "description": "Operating mode: single process or cluster."
+        },
+        "worker_check_interval_seconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Puma worker_check_interval from config/puma.rb. In cluster mode, worker enhanced_stats refresh at this interval."
+        }
       }
     },
     "summary": {
       "type": "object",
+      "description": "Aggregated counters across all workers in this response.",
       "required": [
         "workers_total",
         "workers_reporting",
@@ -41,46 +69,107 @@
         "pool_capacity_total"
       ],
       "properties": {
-        "workers_total": { "type": "integer", "minimum": 0 },
-        "workers_reporting": { "type": "integer", "minimum": 0 },
-        "workers_stale": { "type": "integer", "minimum": 0 },
-        "requests_in_flight": { "type": "integer", "minimum": 0 },
-        "requests_dropped_total": { "type": "integer", "minimum": 0 },
-        "requests_truncated": { "type": "boolean" },
-        "backlog_total": { "type": "integer", "minimum": 0 },
-        "busy_threads_total": { "type": "integer", "minimum": 0 },
-        "max_threads_total": { "type": "integer", "minimum": 0 },
-        "pool_capacity_total": { "type": "integer", "minimum": 0 }
+        "workers_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of worker rows."
+        },
+        "workers_reporting": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Workers with non-null synced_at (cluster enhanced stats received)."
+        },
+        "workers_stale": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "workers_total minus workers_reporting."
+        },
+        "requests_in_flight": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of workers[].requests.meta.count."
+        },
+        "requests_dropped_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of per-worker dropped_count deltas since last sync."
+        },
+        "requests_truncated": {
+          "type": "boolean",
+          "description": "True if any worker reported field truncation in the interval."
+        },
+        "backlog_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of workers[].puma.backlog."
+        },
+        "busy_threads_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of workers[].puma.busy_threads."
+        },
+        "max_threads_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of workers[].puma.max_threads."
+        },
+        "pool_capacity_total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Sum of workers[].puma.pool_capacity."
+        }
       }
     },
     "workers": {
       "type": "array",
+      "description": "Per-worker Puma stats, process metrics, and in-flight request registry.",
       "items": { "$ref": "#/$defs/worker" }
     }
   },
   "$defs": {
     "worker": {
       "type": "object",
+      "description": "One Puma worker (or synthetic single-mode row).",
       "required": ["index", "pid", "synced_at", "puma", "process", "requests"],
       "properties": {
-        "index": { "type": "integer", "minimum": 0 },
-        "pid": { "type": "integer" },
-        "synced_at": { "type": ["string", "null"], "format": "date-time" },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Worker index (0 in single mode)."
+        },
+        "pid": {
+          "type": "integer",
+          "description": "OS process id."
+        },
+        "synced_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "UTC time of last cluster ping carrying enhanced_stats; null until first ping. In single mode, equals meta.collected_at."
+        },
         "puma": { "$ref": "#/$defs/puma_stats" },
         "process": {
           "type": "object",
+          "description": "Worker process metrics sampled via /proc on Linux.",
           "required": ["rss_bytes", "cpu_percent"],
           "properties": {
-            "rss_bytes": { "type": ["integer", "null"] },
-            "cpu_percent": { "type": ["number", "null"] }
+            "rss_bytes": {
+              "type": ["integer", "null"],
+              "description": "Resident set size in bytes; null when process metrics are unavailable."
+            },
+            "cpu_percent": {
+              "type": ["number", "null"],
+              "description": "CPU usage percent since the previous snapshot, matching top-style interval sampling; null on the first snapshot or when unavailable."
+            }
           }
         },
         "requests": {
           "type": "object",
+          "description": "In-flight HTTP request registry for this worker.",
           "required": ["meta", "items"],
           "properties": {
             "meta": {
               "type": "object",
+              "description": "Registry configuration and interval deltas.",
               "required": [
                 "count",
                 "request_limit",
@@ -89,18 +178,35 @@
                 "dropped_count"
               ],
               "properties": {
-                "count": { "type": "integer", "minimum": 0 },
-                "request_limit": { "type": "integer", "minimum": 1 },
+                "count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Current number of in-flight entries."
+                },
+                "request_limit": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "Configured maximum in-flight entries."
+                },
                 "limit_policy": {
                   "type": "string",
-                  "enum": ["keep_longest", "reject_new"]
+                  "enum": ["keep_longest", "reject_new"],
+                  "description": "Policy when registry is full: evict newest or reject new."
                 },
-                "truncated": { "type": "boolean" },
-                "dropped_count": { "type": "integer", "minimum": 0 }
+                "truncated": {
+                  "type": "boolean",
+                  "description": "Whether any field was truncated since the previous snapshot/ping."
+                },
+                "dropped_count": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Registrations rejected or evicted since the previous snapshot/ping."
+                }
               }
             },
             "items": {
               "type": "array",
+              "description": "In-flight request entries.",
               "items": { "$ref": "#/$defs/request_item" }
             }
           }
@@ -109,15 +215,33 @@
     },
     "request_item": {
       "type": "object",
-      "required": ["id", "started_at"],
+      "description": "One in-flight HTTP request tracked by the registry.",
+      "required": ["id", "started_at", "session"],
       "properties": {
-        "id": { "type": "string" },
-        "started_at": { "type": "string", "format": "date-time" },
-        "method": { "type": "string" },
-        "path_info": { "type": "string" },
-        "remote_ip": { "type": "string" },
+        "id": {
+          "type": "string",
+          "description": "action_dispatch.request_id."
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC time when the request was registered."
+        },
+        "method": {
+          "type": "string",
+          "description": "HTTP method (built-in request field)."
+        },
+        "path_info": {
+          "type": "string",
+          "description": "Request path without query string (built-in request field)."
+        },
+        "remote_ip": {
+          "type": "string",
+          "description": "Client IP (built-in request field)."
+        },
         "session": {
           "type": "object",
+          "description": "Configured session field extractors. Always present; empty object when no session fields are configured.",
           "additionalProperties": true
         }
       },
@@ -125,6 +249,7 @@
     },
     "puma_stats": {
       "type": "object",
+      "description": "Puma thread-pool counters from Puma::Server::STAT_METHODS.",
       "required": [
         "backlog",
         "running",
@@ -137,14 +262,46 @@
       ],
       "additionalProperties": false,
       "properties": {
-        "backlog": { "type": "integer", "minimum": 0 },
-        "running": { "type": "integer", "minimum": 0 },
-        "pool_capacity": { "type": "integer", "minimum": 0 },
-        "busy_threads": { "type": "integer", "minimum": 0 },
-        "backlog_max": { "type": "integer", "minimum": 0 },
-        "max_threads": { "type": "integer", "minimum": 0 },
-        "requests_count": { "type": "integer", "minimum": 0 },
-        "reactor_max": { "type": "integer", "minimum": 0 }
+        "backlog": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Connections waiting for a thread."
+        },
+        "running": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Threads running app code."
+        },
+        "pool_capacity": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Available capacity in the thread pool."
+        },
+        "busy_threads": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Threads currently busy."
+        },
+        "backlog_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum backlog observed."
+        },
+        "max_threads": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum threads configured."
+        },
+        "requests_count": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total requests handled by this worker."
+        },
+        "reactor_max": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Reactor max counter from Puma."
+        }
       }
     }
   }

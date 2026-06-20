@@ -3,7 +3,7 @@
 RSpec.describe Puma::Enhanced::Stats::Snapshot do
   def default_enhanced_stats(**overrides)
     {
-      items: [{ id: "a", started_at: (Time.now.utc - 2).iso8601, method: "GET", path_info: "/" }],
+      items: [{ id: "a", started_at: (Time.now.utc - 2).iso8601, method: "GET", path_info: "/", session: {} }],
       process: { rss_bytes: 100, cpu_percent: 1.0 },
       dropped_count: 0,
       truncated: false,

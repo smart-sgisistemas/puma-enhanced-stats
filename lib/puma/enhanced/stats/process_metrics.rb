@@ -1,40 +1,65 @@
 # frozen_string_literal: true
 
+require "singleton"
+
 module Puma
   module Enhanced
     module Stats
-      # Samples RSS and CPU for the current worker process.
-      #
-      # Uses +ps+ on Linux and macOS. Returns {EMPTY} on unsupported platforms
-      # or when the command fails. Included in {CurrentRequests#snapshot} and
-      # normalized by {Snapshot} for the control-app JSON.
-      #
-      # @example
-      #   ProcessMetrics.read
-      #   # => { rss_bytes: 256_000_000, cpu_percent: 12.5 }
       class ProcessMetrics
-        # Returned when process metrics cannot be sampled.
-        #
-        # @return [Hash{Symbol => nil}]
+        include Singleton
+
         EMPTY = { rss_bytes: nil, cpu_percent: nil }.freeze
 
         class << self
-          # Samples RSS (bytes) and CPU percent for the current process.
-          #
-          # @return [Hash{Symbol => Integer, Float, nil}]
-          def read
-            return EMPTY unless RUBY_PLATFORM.match?(/linux|darwin/i)
+          private :instance
 
-            rss_kb, cpu = `ps -o rss=,%cpu= -p #{Process.pid} 2>/dev/null`.strip.split(/\s+/, 2)
-            return EMPTY if rss_kb.to_s.empty?
-
-            {
-              rss_bytes: rss_kb.to_i * 1024,
-              cpu_percent: cpu.to_f.round(2)
-            }
-          rescue StandardError
-            EMPTY
+          if RUBY_PLATFORM.match?(/linux/i)
+            def snapshot = instance.snapshot
+          else
+            def snapshot = EMPTY
           end
+        end
+
+        def initialize
+          @mutex = Mutex.new
+          @last_cpu_sample = nil
+        end
+
+        def snapshot
+          rss_bytes = read_rss_bytes
+          return EMPTY if rss_bytes.nil?
+
+          {
+            rss_bytes: rss_bytes,
+            cpu_percent: sample_cpu_percent
+          }
+        rescue StandardError
+          EMPTY
+        end
+
+        private
+
+        def sample_cpu_percent
+          times = Process.times
+          cpu_time_sec = times.utime + times.stime
+          now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+          @mutex.synchronize do
+            last = @last_cpu_sample
+            @last_cpu_sample = { cpu_time_sec: cpu_time_sec, at: now }
+            return nil unless last
+
+            delta_cpu = cpu_time_sec - last[:cpu_time_sec]
+            delta_wall = now - last[:at]
+            return nil if delta_wall <= 0.0
+
+            (100.0 * delta_cpu / delta_wall).round(2)
+          end
+        end
+
+        def read_rss_bytes
+          kb = File.read("/proc/self/status")[/^VmRSS:\s+(\d+)/, 1]
+          kb&.to_i&.*(1024)
         end
       end
     end

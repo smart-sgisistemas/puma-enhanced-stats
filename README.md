@@ -1,318 +1,126 @@
 # Puma::Enhanced::Stats
 
-Gem to collect, enrich, and expose extended statistics from Puma's `control_app` in **Rails 7+** applications.
+Extended statistics for **Puma 8+** on **Rails 7+**: in-flight HTTP requests, thread-pool counters, and worker process metrics exposed through a stable JSON contract on the control app.
 
 ## Overview
 
-`puma-enhanced-stats` tracks **in-flight HTTP requests** per worker and exposes them together with **Puma thread-pool stats** and **process metrics** (RSS, CPU) through a stable JSON contract.
-
 | Capability | Description |
 |------------|-------------|
-| In-flight requests | Method, path, remote IP, and optional session fields while a request is active |
-| Puma stats | Thread pool counters from `Puma::Server::STAT_METHODS` (`backlog`, `running`, `pool_capacity`, `busy_threads`, `backlog_max`, `max_threads`, `requests_count`, `reactor_max`) |
-| Process metrics | RSS (bytes) and CPU percent via `ps` on Linux/macOS |
-| Cluster aggregation | Master merges enhanced stats synced from each worker ping |
+| In-flight requests | `id`, `started_at`, method, path, client IP, and optional session fields while a request is active |
+| Puma pool stats | `backlog`, `running`, `busy_threads`, `pool_capacity`, and related counters |
+| Process metrics | RSS (bytes) and interval CPU % (top-style) via `/proc` on Linux |
+| Cluster aggregation | Master merges enhanced payloads synced from worker pings |
 
-The gem activates when loaded via Bundler. No `puma.rb` entry is required for defaults.
+Activation is automatic via Bundler. Defaults work with only a Gemfile entry.
+
+**Documentation:** [docs/README.md](docs/README.md) — operations, JSON contract, security, architecture.
 
 ## Requirements
 
 - Ruby >= 3.0
 - Rails >= 7.0, < 8
-- Puma >= 8.0
+- Puma >= 8.0, < 9
+- Linux (for worker `rss_bytes` / `cpu_percent`; other platforms return `null`)
 
 ## Installation
 
-Add the gem to your Gemfile:
-
 ```ruby
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.4.2"
+# Gemfile
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.4.3"
 ```
-
-Or track `main` / a branch:
-
-```ruby
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats"
-```
-
-Then run:
 
 ```bash
 bundle install
 ```
 
-The Railtie appends `CurrentRequestsMiddleware` as the innermost layer so in-flight requests are tracked after session middleware runs and `rack.session` is available for session field extractors.
+## Quick start
 
-## Control app setup
-
-Enhanced stats are served by Puma's control server. Enable it in `config/puma.rb`:
+Enable the control app in `config/puma.rb`:
 
 ```ruby
-# config/puma.rb
-workers 2 # optional — cluster mode
-
 activate_control_app "tcp://127.0.0.1:9293", { auth_token: "secret" }
 ```
 
-The control app listens on the configured bind address (here `9293`). Requests without a valid `token` query parameter receive **403 Forbidden**.
-
-## Querying stats
-
-### HTTP (control app)
+Query enhanced stats:
 
 ```bash
 curl "http://127.0.0.1:9293/enhanced-stats?token=secret"
-```
-
-### pumactl
-
-```bash
 bundle exec pumactl -S tmp/puma.state enhanced-stats
 ```
 
-`pumactl` uses the state file and control socket configured by Puma; authentication follows the same rules as other control commands.
+Invalid or missing tokens receive **403 Forbidden**. See [docs/security.md](docs/security.md).
 
-## Usage
+## Configuration
 
-### Zero-config
-
-With only the Gemfile entry, the gem uses built-in defaults:
-
-- Request fields: `remote_ip`, `method`, `path_info`
-- `request_limit` 100, `limit_policy` `:keep_longest`
-
-### Custom configuration
-
-Declare `enhanced_stats` in `config/puma.rb` to customize field extractors and limits:
+Optional block in `config/puma.rb`:
 
 ```ruby
 enhanced_stats do
-  request :path do |env|
-    env["PATH_INFO"]
-  end
-
   session :user_id
-  session :tenant_slug do |session|
-    session.dig("current_tenant", "slug")
-  end
-
   request_limit 100
   limit_policy :keep_longest
   max_field_length 256
-  truncate_suffix "…"
-  truncate_suffix "…"
 end
 ```
 
-When declared, the block is required.
+Zero-config defaults: request fields `id`, `started_at`, `remote_ip`, `method`, `path_info`; `session` always `{}` until you add session extractors; `request_limit` 100; `:keep_longest` policy.
 
-Configure worker ping frequency with Puma's `worker_check_interval` in `config/puma.rb` (cluster mode). JSON `meta.worker_check_interval_seconds` reflects that value.
+Full DSL, limit policies, and cluster tuning: [docs/operations.md](docs/operations.md).
+
+Cluster mode — set ping interval with Puma's `worker_check_interval`:
 
 ```ruby
-# config/puma.rb — cluster example
 workers 2
 worker_check_interval 5
 ```
 
-### Defaults
-
-| DSL | Default |
-|-----|---------|
-| `request` | `remote_ip`, `method`, `path_info` |
-| `session` | disabled |
-| `request_limit` | `100` |
-| `limit_policy` | `:keep_longest` |
-| `max_field_length` | `256` (characters) |
-| `truncate_suffix` | `…` (U+2026); empty string disables the suffix |
-| `truncate_suffix` | `…` (U+2026) |
-
-### Field extractors
-
-Both `request` and `session` are read at request entry (when the request is registered as in-flight).
-
-| DSL | Source | Block argument | Stored as |
-|-----|--------|----------------|-----------|
-| `request` | Rack `env` | `env` | top-level keys on the entry (`method`, `path_info`, …) |
-| `session` | `env["rack.session"]` | session hash | nested under `"session"` |
-
-Built-in `request` fields:
-
-| Name | Extracted from |
-|------|----------------|
-| `remote_ip` | `env["action_dispatch.remote_ip"]` or `env["REMOTE_ADDR"]` |
-| `method` | `env["REQUEST_METHOD"]` |
-| `path_info` | `env["SCRIPT_NAME"]` + `env["PATH_INFO"]` (no query string) |
-
-Built-in `session` fields read keys from `env["rack.session"]`. Use a block for derived values:
-
-```ruby
-session :tenant_slug do |session|
-  session.dig("current_tenant", "slug")
-end
-```
-
-### Limit policies
-
-| Policy | Behavior when the registry is full |
-|--------|--------------------------------------|
-| `:keep_longest` (default) | Evicts the newest in-flight entry and increments `dropped_count` for the current sync interval |
-| `:reject_new` | Skips registration for new requests and increments `dropped_count` for the current sync interval |
-
-`dropped_count` and `truncated` in each worker's `requests.meta` report events since the last worker ping (cluster) or last snapshot read (single), not cumulative process lifetime.
-
 ## JSON response
 
-The payload follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json). Top-level keys:
+Payload follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json) (`schema_version: 1`).
 
-| Key | Description |
-|-----|-------------|
-| `schema_version` | Always `1` |
-| `meta` | Collection timestamp, gem/Puma/Ruby versions, mode (`single` or `cluster`), `worker_check_interval_seconds` |
-| `summary` | Cluster-wide counters: workers, in-flight requests, drops, truncation, and aggregated Puma pool metrics (`backlog_total`, `busy_threads_total`, `max_threads_total`, `pool_capacity_total`) |
-| `workers` | Per-worker Puma stats, process metrics, and in-flight request items |
+| Section | Purpose |
+|---------|---------|
+| `meta` | Timestamp, versions, `single` / `cluster` mode |
+| `summary` | Cluster-wide workers, in-flight counts, pool totals |
+| `workers[]` | Per-worker Puma stats, process metrics, in-flight `items` |
 
-Worker `synced_at` is the last cluster ping carrying `enhanced_stats` (`null` until the first ping). In single mode it is the snapshot collection time.
+Each in-flight item includes required `id`, `started_at`, and `session` (empty object when no session fields are configured).
 
-Example (truncated):
+Field reference and delta semantics: [docs/json-contract.md](docs/json-contract.md).  
+Sample: [spec/fixtures/enhanced-stats-v1.sample.json](spec/fixtures/enhanced-stats-v1.sample.json).
 
-```json
-{
-  "schema_version": 1,
-  "meta": {
-    "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.4.2",
-    "puma_version": "8.0.2",
-    "ruby_version": "3.2.2",
-    "mode": "cluster",
-    "worker_check_interval_seconds": 5
-  },
-  "summary": {
-    "workers_total": 2,
-    "workers_reporting": 2,
-    "workers_stale": 0,
-    "requests_in_flight": 1,
-    "requests_dropped_total": 0,
-    "requests_truncated": false,
-    "backlog_total": 0,
-    "busy_threads_total": 1,
-    "max_threads_total": 10,
-    "pool_capacity_total": 9
-  },
-  "workers": [{
-    "index": 0,
-    "pid": 12345,
-    "synced_at": "2026-06-12T10:00:05Z",
-    "puma": {
-      "backlog": 0,
-      "running": 1,
-      "pool_capacity": 5,
-      "busy_threads": 1,
-      "backlog_max": 0,
-      "max_threads": 5,
-      "requests_count": 10,
-      "reactor_max": 0
-    },
-    "process": {
-      "rss_bytes": 256000000,
-      "cpu_percent": 12.5
-    },
-    "requests": {
-      "meta": {
-        "count": 1,
-        "request_limit": 100,
-        "limit_policy": "keep_longest",
-        "truncated": false,
-        "dropped_count": 0
-      },
-      "items": [{
-        "id": "abc",
-        "started_at": "2026-06-12T09:59:20Z",
-        "method": "GET",
-        "path_info": "/reports",
-        "remote_ip": "127.0.0.1",
-        "session": { "user_id": "42" }
-      }]
-    }
-  }]
-}
-```
+Native Puma endpoints are unchanged — enhanced data appears **only** on `/enhanced-stats` and `pumactl enhanced-stats`.
 
-See [spec/fixtures/enhanced-stats-v1.sample.json](spec/fixtures/enhanced-stats-v1.sample.json) for a full sample.
+## Limitations
 
-## Operating modes
+- **Streaming bodies** — requests leave the registry when the Rails stack returns, not when the body finishes sending ([architecture](docs/architecture.md)).
+- **Cluster freshness** — in-flight data reflects the last worker ping (up to `worker_check_interval` stale).
+- **Process metrics** — Linux only, via `/proc`; CPU is interval-based like `top` (`cpu_percent: null` on the first snapshot).
+- **Rails required** — uses Rails middleware and `action_dispatch.request_id`.
 
-| Mode | How enhanced stats are collected |
-|------|----------------------------------|
-| **single** | Master reads the live in-flight registry and samples process metrics on demand |
-| **cluster** | Each worker injects `enhanced_stats` into its ping payload; the master merges via `WorkerHandle` |
+## Terminal CLI
 
-Cluster sync flow:
-
-```mermaid
-sequenceDiagram
-  participant Worker
-  participant WorkerWrite
-  participant Master
-  participant Snapshot
-
-  Worker->>WorkerWrite: ping with Puma stats
-  WorkerWrite->>WorkerWrite: append registry + process metrics
-  WorkerWrite->>Master: ping JSON with enhanced_stats
-  Master->>Master: WorkerHandle stores payload
-  Snapshot->>Master: build on GET /enhanced-stats
-  Snapshot->>Snapshot: merge workers into JSON
-```
-
-In cluster mode, set Puma's `worker_check_interval` in `config/puma.rb` to control how often workers ping the master (and carry `enhanced_stats`). `before_worker_boot` clears the in-flight registry when a worker process starts.
-
-`pumactl stats` and `GET /stats` remain unchanged — enhanced data is only on `GET /enhanced-stats` and `pumactl enhanced-stats`.
-
-## Platform notes
-
-- **Process metrics** (`rss_bytes`, `cpu_percent`) are sampled via `ps` on **Linux and macOS** only. On other platforms (e.g. Windows), values are `null`.
-- **Rails required.** The Railtie appends `CurrentRequestsMiddleware` as the innermost layer so session middleware runs earlier on the request path and `rack.session` is available for session field extractors.
-- **Activation** is controlled by including or omitting the gem in the Gemfile; there is no `enabled` flag.
+The terminal dashboard CLI was **removed in v0.4.0** (planned to return in a future release). Use HTTP or `pumactl enhanced-stats` instead.
 
 ## Development
 
-Clone the repository and install dependencies:
-
 ```bash
 bin/setup
-bundle exec rake
-```
-
-Coverage (100% line + branch):
-
-```bash
+bundle exec rake              # unit specs (integration excluded by default in CI matrix)
 COVERAGE=true bundle exec rake spec:coverage
-# report: coverage/index.html
+bundle exec yard              # API docs → doc/
+bin/console
 ```
 
-Or use Docker:
+Docker:
 
 ```bash
 docker build -t puma-enhanced-stats:dev .
 docker run --rm -v "$(pwd):/app" -w /app puma-enhanced-stats:dev bundle exec rake
 ```
 
-Generate API documentation:
-
-```bash
-bundle exec yard
-# output: doc/
-```
-
-Interactive console:
-
-```bash
-bin/console
-```
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/smart-sgisistemas/puma-enhanced-stats.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
+MIT — see [LICENSE.txt](LICENSE.txt).

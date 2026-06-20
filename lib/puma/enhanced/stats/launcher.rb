@@ -3,28 +3,9 @@
 module Puma
   module Enhanced
     module Stats
-      # Prepends boot logic onto {Puma::Launcher}.
-      #
-      # Before calling +super+, assigns +options[:enhanced_stats]+ (or
-      # {Configuration.default}) to {CurrentRequests}. In cluster mode, also
-      # registers a +before_worker_boot+ hook that calls {CurrentRequests.reset!}
-      # so forked workers start with an empty registry.
-      #
-      # @example Cluster boot sequence
-      #   launcher.run
-      #   # => CurrentRequests.config = ...
-      #   # => before_worker_boot { CurrentRequests.reset! }
       module Launcher
-        # Cluster worker handles for internal snapshot assembly (+nil+ in single mode).
-        #
-        # Not used by {Puma::Cluster#stats}; keeps +pumactl stats+ in the native Puma format.
-        #
-        # @return [Array<Puma::Cluster::WorkerHandle>, nil]
         def workers = (@runner.workers if clustered?)
 
-        # Publishes configuration and cluster hooks, then starts Puma.
-        #
-        # @return [void]
         def run
           if clustered?
             config.configure do |_, _, default|
