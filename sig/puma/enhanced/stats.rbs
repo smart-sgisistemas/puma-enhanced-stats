@@ -36,7 +36,7 @@ module Puma
         attr_reader limit_policy: Symbol
         attr_reader max_field_length: Integer
         attr_reader truncate_suffix: String
-        attr_reader fields: { request: Hash[String, Field], session: Hash[String, Field] }
+        attr_reader fields: { request: Hash[Symbol, Field], session: Hash[Symbol, Field] }
 
         def self.default: () -> Configuration
 

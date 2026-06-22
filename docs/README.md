@@ -1,6 +1,6 @@
 # Documentation
 
-Guides for **puma-enhanced-stats** v0.5.0. The gem exposes in-flight HTTP requests and Puma thread-pool counters through a stable JSON contract on the Puma control app.
+Guides for **puma-enhanced-stats** v0.5.1. The gem exposes in-flight HTTP requests and Puma thread-pool counters through a stable JSON contract on the Puma control app.
 
 ## Reading order
 
@@ -26,4 +26,4 @@ Guides for **puma-enhanced-stats** v0.5.0. The gem exposes in-flight HTTP reques
 
 ## Version
 
-Documentation matches gem **v0.5.0** unless noted otherwise.
+Documentation matches gem **v0.5.1** unless noted otherwise.

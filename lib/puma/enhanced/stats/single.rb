@@ -7,7 +7,7 @@ module Puma
     module Stats
       module Single
         def enhanced_stats
-          Snapshot.new(server: @server, worker_check_interval: @options[:worker_check_interval]).to_h
+          Snapshot.new(server: @server, worker_check_interval: 0).to_h
         end
       end
     end

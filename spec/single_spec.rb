@@ -18,6 +18,7 @@ RSpec.describe Puma::Enhanced::Stats::Single do
     payload = single.enhanced_stats
 
     expect(payload[:workers].size).to eq(1)
+    expect(payload[:meta][:worker_check_interval_seconds]).to eq(0)
     expect(payload[:workers].first[:requests][:items].first[:path_info]).to end_with("/live")
     expect(payload[:summary][:workers_total]).to eq(1)
   end

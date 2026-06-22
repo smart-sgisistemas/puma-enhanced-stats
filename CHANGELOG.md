@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.5.1 — 2026-06-22
+
+### Changed
+
+- **Single mode** — `meta.worker_check_interval_seconds` is always `0` (live read on each request).
+- **`Configuration#fields`** — registry keys use symbols (`name.to_sym`).
+- **`Snapshot`** — `@collected_at` set in `initialize`; cluster rows call `build_row` directly.
+
 ## 0.5.0 — 2026-06-20
 
 ### Added

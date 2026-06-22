@@ -19,11 +19,11 @@ module Puma
         def initialize
           @fields = {
             request: {
-              "id" => Field.new(name: "id", block: ->(env) { env["action_dispatch.request_id"] }),
-              "started_at" => Field.new(name: "started_at", block: ->(_env) { Time.now.utc.iso8601(6) }),
-              "method" => Field.new(name: "method", block: ->(env) { env["REQUEST_METHOD"] }),
-              "remote_ip" => Field.new(name: "remote_ip", block: ->(env) { env["action_dispatch.remote_ip"] || env["REMOTE_ADDR"] }),
-              "path_info" => Field.new(name: "path_info", block: ->(env) { (env["SCRIPT_NAME"] || "") + env["PATH_INFO"] })
+              id: Field.new(name: "id", block: ->(env) { env["action_dispatch.request_id"] }),
+              started_at: Field.new(name: "started_at", block: ->(_env) { Time.now.utc.iso8601(6) }),
+              method: Field.new(name: "method", block: ->(env) { env["REQUEST_METHOD"] }),
+              remote_ip: Field.new(name: "remote_ip", block: ->(env) { env["action_dispatch.remote_ip"] || env["REMOTE_ADDR"] }),
+              path_info: Field.new(name: "path_info", block: ->(env) { (env["SCRIPT_NAME"] || "") + env["PATH_INFO"] })
             },
             session: {}
           }
@@ -69,7 +69,7 @@ module Puma
           raise Error, "#{namespace} with block accepts exactly one name" unless names.size == 1 if block
 
           names.each do |name|
-            @fields[namespace][name.to_s] = Field.new name: name, block: block
+            @fields[namespace][name.to_sym] = Field.new name: name, block: block
           end
         end
       end

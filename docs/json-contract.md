@@ -22,7 +22,7 @@ A full sample lives at [spec/fixtures/enhanced-stats-v1.sample.json](../spec/fix
 | `puma_version` | Running Puma version |
 | `ruby_version` | Running Ruby version |
 | `mode` | `"single"` or `"cluster"` |
-| `worker_check_interval_seconds` | Value from Puma `worker_check_interval` in `config/puma.rb` (cluster); reflects configured ping interval |
+| `worker_check_interval_seconds` | `0` in single mode (live read). In cluster, value from Puma `worker_check_interval` in `config/puma.rb` |
 
 In **single** mode, enhanced data is read live from the in-flight registry when you query `/enhanced-stats`.
 

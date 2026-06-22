@@ -90,9 +90,10 @@ RSpec.describe Puma::Enhanced::Stats::Snapshot do
         frozen = Time.utc(2026, 1, 1, 12, 0, 0)
         allow(Time).to receive(:now).and_return(frozen)
 
-        payload = described_class.new(server: server, worker_check_interval: 5).to_h
+        payload = described_class.new(server: server, worker_check_interval: 0).to_h
 
         expect(payload[:meta][:mode]).to eq("single")
+        expect(payload[:meta][:worker_check_interval_seconds]).to eq(0)
         expect(payload[:workers].first[:puma][:running]).to eq(1)
         expect(payload[:workers].first[:requests][:items].first[:id]).to eq("snapshot-single")
         expect(payload[:workers].first[:synced_at]).to eq(payload[:meta][:collected_at])

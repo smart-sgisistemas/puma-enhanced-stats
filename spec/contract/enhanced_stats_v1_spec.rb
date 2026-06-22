@@ -43,6 +43,7 @@ RSpec.describe "enhanced-stats-v1 schema" do
 
     json = JSON.parse(JSON.generate(launcher.enhanced_stats))
 
+    expect(json["meta"]["worker_check_interval_seconds"]).to eq(0)
     expect(json["workers"].first["puma"].keys).to match_array(Puma::Server::STAT_METHODS.map(&:to_s))
     expect(json["workers"].first["requests"]["items"].first["session"]).to eq({})
     expect(schema.validate(json).to_a).to be_empty

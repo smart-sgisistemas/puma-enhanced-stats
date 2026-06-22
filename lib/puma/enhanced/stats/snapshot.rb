@@ -10,6 +10,7 @@ module Puma
           @worker_check_interval = worker_check_interval
           @server = server
           @workers = workers
+          @collected_at = Time.now.utc.iso8601
         end
 
         def to_h
@@ -27,22 +28,20 @@ module Puma
 
         def worker_rows
           if @workers
-            @workers.sort_by(&:index).map { |worker| cluster_row worker }
+            @workers.sort_by(&:index).map do |worker|
+              build_row(
+                index: worker.index,
+                pid: worker.pid,
+                registry: worker.last_enhanced_stats
+              )
+            end
           else
             [build_row(
               index: 0,
               pid: Process.pid,
-              registry: CurrentRequests.snapshot.merge(@server&.stats || {}).merge(synced_at: collected_at)
+              registry: CurrentRequests.snapshot.merge(@server&.stats || {}).merge(synced_at: @collected_at)
             )]
           end
-        end
-
-        def cluster_row worker
-          build_row(
-            index: worker.index,
-            pid: worker.pid,
-            registry: worker.last_enhanced_stats
-          )
         end
 
         def build_row index:, pid:, registry:
@@ -69,17 +68,13 @@ module Puma
 
         def meta
           {
-            collected_at: collected_at,
+            collected_at: @collected_at,
             gem_version: VERSION,
             puma_version: Puma::Const::PUMA_VERSION,
             ruby_version: RUBY_VERSION,
             mode: @workers ? "cluster" : "single",
             worker_check_interval_seconds: @worker_check_interval
           }
-        end
-
-        def collected_at
-          @collected_at ||= Time.now.utc.iso8601
         end
 
         def summarize workers

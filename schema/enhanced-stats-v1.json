@@ -48,8 +48,8 @@
         },
         "worker_check_interval_seconds": {
           "type": "integer",
-          "minimum": 1,
-          "description": "Puma worker_check_interval from config/puma.rb. In cluster mode, worker enhanced_stats refresh at this interval."
+          "minimum": 0,
+          "description": "Puma worker_check_interval from config/puma.rb in cluster mode. Always 0 in single mode (live read on each request)."
         }
       }
     },

@@ -24,7 +24,7 @@ Activation is automatic via Bundler. Defaults work with only a Gemfile entry.
 
 ```ruby
 # Gemfile
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.5.0"
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.5.1"
 ```
 
 ```bash
