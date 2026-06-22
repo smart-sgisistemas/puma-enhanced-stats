@@ -27,7 +27,7 @@
         "collected_at": {
           "type": "string",
           "format": "date-time",
-          "description": "UTC timestamp when Snapshot#build ran on the master."
+          "description": "UTC timestamp when launcher.enhanced_stats ran on the master."
         },
         "gem_version": {
           "type": "string",
@@ -122,7 +122,7 @@
     },
     "workers": {
       "type": "array",
-      "description": "Per-worker Puma stats, process metrics, and in-flight request registry.",
+      "description": "Per-worker Puma stats and in-flight request registry.",
       "items": { "$ref": "#/$defs/worker" }
     }
   },
@@ -130,7 +130,7 @@
     "worker": {
       "type": "object",
       "description": "One Puma worker (or synthetic single-mode row).",
-      "required": ["index", "pid", "synced_at", "puma", "process", "requests"],
+      "required": ["index", "pid", "synced_at", "puma", "requests"],
       "properties": {
         "index": {
           "type": "integer",
@@ -147,21 +147,6 @@
           "description": "UTC time of last cluster ping carrying enhanced_stats; null until first ping. In single mode, equals meta.collected_at."
         },
         "puma": { "$ref": "#/$defs/puma_stats" },
-        "process": {
-          "type": "object",
-          "description": "Worker process metrics sampled via /proc on Linux.",
-          "required": ["rss_bytes", "cpu_percent"],
-          "properties": {
-            "rss_bytes": {
-              "type": ["integer", "null"],
-              "description": "Resident set size in bytes; null when process metrics are unavailable."
-            },
-            "cpu_percent": {
-              "type": ["number", "null"],
-              "description": "CPU usage percent since the previous snapshot, matching top-style interval sampling; null on the first snapshot or when unavailable."
-            }
-          }
-        },
         "requests": {
           "type": "object",
           "description": "In-flight HTTP request registry for this worker.",

@@ -338,29 +338,6 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
     end
   end
 
-  describe "snapshot assembly" do
-    it "samples process metrics outside the registry mutex" do
-      current_requests.register env
-
-      mutex = registry.instance_variable_get(:@mutex)
-      order = []
-
-      allow(mutex).to receive(:synchronize).and_wrap_original do |original, *args, &block|
-        order << :lock
-        original.call(*args, &block).tap { order << :unlock }
-      end
-
-      allow(Puma::Enhanced::Stats::ProcessMetrics).to receive(:snapshot) do
-        order << :sample
-        Puma::Enhanced::Stats::ProcessMetrics::EMPTY
-      end
-
-      current_requests.snapshot
-
-      expect(order).to eq(%i[lock unlock sample])
-    end
-  end
-
   describe "snapshot meta counters" do
     it "resets dropped_count after snapshot" do
       current_config.limit_policy = :reject_new
@@ -374,17 +351,59 @@ RSpec.describe Puma::Enhanced::Stats::CurrentRequests do
   end
 
   describe "private eviction helpers" do
-    it "no-ops keep_longest eviction when policy is reject_new" do
+    it "rejects instead of evicting when policy is reject_new" do
       current_config.limit_policy = :reject_new
       current_requests.register env.merge("action_dispatch.request_id" => "req-1")
       current_requests.register env.merge("action_dispatch.request_id" => "req-2")
 
-      expect { registry.send(:evict_when_full_keep_longest!) }
-        .not_to change { current_requests.snapshot[:items].size }
+      expect(current_requests.snapshot[:items].size).to eq(2)
+
+      current_requests.register env.merge("action_dispatch.request_id" => "req-3")
+
+      snapshot = current_requests.snapshot
+      expect(snapshot[:items].size).to eq(2)
+      expect(snapshot[:dropped_count]).to eq(1)
     end
 
-    it "no-ops newest eviction when the registry is empty" do
+    it "no-ops when the registry is not full" do
+      expect(registry.send(:full?)).to be(false)
+      expect { registry.send(:evict_newest!) }.not_to change { registry.snapshot[:items].size }
+    end
+
+    it "returns early when evict_newest! runs on an empty registry" do
       expect { registry.send(:evict_newest!) }.not_to raise_error
+    end
+
+    it "evicts during the post-build registration check when full" do
+      gate = Mutex.new
+      cv = ConditionVariable.new
+      state = { open: false }
+      current_requests.config = Puma::Enhanced::Stats::Configuration.new.tap do |configuration|
+        configuration.request_limit = 1
+        configuration.limit_policy = :keep_longest
+        configuration.register_fields :request, :gate do |env|
+          if env["PATH_INFO"] == "/slow"
+            gate.synchronize { cv.wait(gate, 0.5) until state[:open] }
+          end
+          env["PATH_INFO"]
+        end
+      end
+
+      slow = Thread.new do
+        current_requests.register env.merge("PATH_INFO" => "/slow", "action_dispatch.request_id" => "slow-req")
+      end
+      sleep 0.05
+      current_requests.register env.merge("PATH_INFO" => "/fast", "action_dispatch.request_id" => "fast-req")
+      gate.synchronize do
+        state[:open] = true
+        cv.signal
+      end
+      slow.join
+
+      snapshot = current_requests.snapshot
+      expect(snapshot[:items].size).to eq(1)
+      expect(snapshot[:items].first[:path_info]).to end_with("/slow")
+      expect(snapshot[:dropped_count]).to eq(1)
     end
   end
 end

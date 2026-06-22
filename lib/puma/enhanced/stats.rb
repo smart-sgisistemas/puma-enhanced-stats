@@ -6,22 +6,22 @@ require_relative "stats/field"
 require_relative "stats/configuration"
 require_relative "stats/current_requests"
 require_relative "stats/current_requests_middleware"
-require_relative "stats/process_metrics"
-require_relative "stats/snapshot"
-require_relative "stats/status"
-require_relative "stats/worker_handle"
-require_relative "stats/worker_write"
-require_relative "stats/launcher"
-require_relative "stats/dsl"
 
 require "puma"
 require "puma/dsl"
 require "puma/launcher"
 require "puma/app/status"
 require "puma/cluster"
-require "puma/cluster/worker"
-require "puma/cluster/worker_handle"
 require "puma/control_cli"
+
+require_relative "stats/snapshot"
+require_relative "stats/cluster"
+require_relative "stats/worker_handle"
+require_relative "stats/worker"
+require_relative "stats/single"
+require_relative "stats/status"
+require_relative "stats/launcher"
+require_relative "stats/dsl"
 
 require "rails/railtie"
 require_relative "stats/railtie"
@@ -34,8 +34,10 @@ module Puma
       Puma::DSL.prepend DSL
       Puma::Launcher.prepend Launcher
       Puma::App::Status.prepend Status
-      Puma::Cluster::Worker.prepend ClusterWorker
+      Puma::Cluster.prepend Cluster
       Puma::Cluster::WorkerHandle.prepend WorkerHandle
+      Puma::Cluster::Worker.prepend Worker
+      Puma::Single.prepend Single
     end
   end
 
@@ -45,5 +47,15 @@ module Puma
     PRINTABLE_COMMANDS = (PRINTABLE_COMMANDS + ["enhanced-stats"]).freeze
   ensure
     $VERBOSE = old_verbose
+  end
+
+  class << self
+    def enhanced_stats_hash
+      @get_stats.enhanced_stats
+    end
+
+    def enhanced_stats
+      Puma::JSONSerialization.generate enhanced_stats_hash
+    end
   end
 end

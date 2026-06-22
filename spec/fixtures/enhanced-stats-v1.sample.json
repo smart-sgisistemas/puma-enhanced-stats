@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.4.3",
+    "gem_version": "0.5.0",
     "puma_version": "8.0.2",
     "ruby_version": "3.2.2",
     "mode": "cluster",
@@ -33,10 +33,6 @@
       "max_threads": 5,
       "requests_count": 10,
       "reactor_max": 0
-    },
-    "process": {
-      "rss_bytes": 256000000,
-      "cpu_percent": 12.5
     },
     "requests": {
       "meta": {

@@ -1,44 +1,32 @@
 # frozen_string_literal: true
 
-require "json"
-
 module Puma
   module Enhanced
     module Stats
       module WorkerHandle
-        attr_reader :enhanced_stats
+        EMPTY_ENHANCED_STATS = {
+          items: [],
+          dropped_count: 0,
+          truncated: false,
+          synced_at: nil
+        }.merge(Puma::Server::STAT_METHODS.to_h { |key| [key, 0] }).freeze
 
-        def initialize(...)
-          super(...)
-          @enhanced_stats = {
-            items: [],
-            process: nil,
-            dropped_count: 0,
-            truncated: false,
-            synced_at: nil
-          }
-        end
-
-        def ping! status
-          json = JSON.parse(status.strip, symbolize_names: true)
-          store_enhanced_stats! json.delete(:enhanced_stats)
-          super(" #{json.map { |key, value| %("#{key}":#{value || 0}) }.join(', ')} }")
-        rescue JSON::ParserError
+        def initialize *args
+          @last_enhanced_stats = EMPTY_ENHANCED_STATS.dup
           super
         end
 
-        private
+        attr_reader :last_enhanced_stats
 
-        def store_enhanced_stats! payload
-          return unless payload
-
-          @enhanced_stats = {
-            items: payload[:items] || [],
-            process: payload[:process],
-            dropped_count: payload[:dropped_count] || 0,
-            truncated: payload[:truncated] || false,
+        def enhanced_ping! snapshot
+          @last_enhanced_stats = {
+            items: snapshot[:items] || [],
+            dropped_count: snapshot[:dropped_count] || 0,
+            truncated: snapshot[:truncated] || false,
             synced_at: Time.now.utc.iso8601
-          }
+          }.merge(Puma::Server::STAT_METHODS.to_h { |key| [key, snapshot[key] || 0] })
+        rescue StandardError
+          nil
         end
       end
     end

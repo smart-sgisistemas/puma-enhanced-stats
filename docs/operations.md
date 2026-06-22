@@ -101,19 +101,27 @@ String field values longer than `max_field_length` are truncated. When `truncate
 
 In cluster mode:
 
-1. Each worker injects `enhanced_stats` into its **PIPE_PING** payload.
-2. The master stores the latest payload on `WorkerHandle`.
-3. `GET /enhanced-stats` merges cached worker data into JSON.
-
-Tune freshness with Puma's `worker_check_interval`:
+1. `Cluster#run` creates a dedicated Unix pipe on the cluster instance, like Puma's native pipes.
+2. Each worker resolves `@enhanced_write_io` in `Worker#initialize` from the forked cluster runner and runs a sender thread every `worker_check_interval`.
+3. `Cluster` runs a master reader thread; on each line it calls `WorkerHandle#enhanced_ping!` (like native `ping!` → `last_status`).
+4. `Cluster#worker` closes the inherited read end in each child process.
+5. `GET /enhanced-stats` reads `@workers` via `last_enhanced_stats` with Puma's `worker_check_interval`:
 
 ```ruby
-worker_check_interval 5  # seconds between worker pings
+worker_check_interval 5  # seconds between worker pipe writes
 ```
 
 Lower values → fresher in-flight data, more master/worker traffic.
 
-`before_worker_boot` clears the in-flight registry when a worker process starts (forked workers begin empty).
+`Cluster::Worker#run` clears the in-flight registry, closes the inherited read end of the pipe, and starts the worker sender thread.
+
+### Pipe buffer
+
+Unix pipe buffers are typically ~64 KB. Keep `request_limit` and field sizes reasonable; monitor `requests.meta.truncated`. Very large payloads may block the sender until the master reads.
+
+### Deploy
+
+When upgrading to 0.5.0 from 0.4.x, restart the entire cluster so all workers use the dedicated pipe. Mixed versions (legacy ping piggyback + new pipe) are not supported.
 
 ### Interpreting `summary`
 
@@ -129,11 +137,10 @@ Compare `workers[].synced_at` with `meta.collected_at` to judge staleness.
 
 ## Single mode
 
-The master reads `CurrentRequests.snapshot` live when `/enhanced-stats` is requested. Process metrics are sampled at that moment. No worker ping cache involved.
+The master reads `CurrentRequests.snapshot` live when `/enhanced-stats` is requested. No worker ping cache involved.
 
 ## Platform notes
 
-- **Process metrics** — Linux only, via `/proc`. CPU is sampled between consecutive snapshots (same idea as `top`); the first snapshot returns `cpu_percent: null`.
 - **Rails required** — middleware depends on Rails load order and `action_dispatch.request_id`.
 - No runtime `enabled` flag — include or omit the gem in the Gemfile.
 
@@ -153,11 +160,6 @@ The master reads `CurrentRequests.snapshot` live when `/enhanced-stats` is reque
 - Registry may be full with `:reject_new` — check `dropped_count`
 - With `:keep_longest`, fast turnover evicts recent entries — raise `request_limit`
 - Cluster: data may be stale — check `synced_at` and `worker_check_interval`
-
-### `process.rss_bytes` / `cpu_percent` always null
-
-- Platform is not Linux
-- `/proc` is not mounted (unusual outside Linux containers and hosts)
 
 ### `403` on `/enhanced-stats`
 

@@ -1,318 +1,102 @@
 # frozen_string_literal: true
 
+require "puma/enhanced/stats"
+
 RSpec.describe Puma::Enhanced::Stats::Snapshot do
-  def default_enhanced_stats(**overrides)
-    {
-      items: [{ id: "a", started_at: (Time.now.utc - 2).iso8601, method: "GET", path_info: "/", session: {} }],
-      process: { rss_bytes: 100, cpu_percent: 1.0 },
-      dropped_count: 0,
-      truncated: false,
-      synced_at: Time.now.utc.iso8601
-    }.merge(overrides)
+  def default_stats **overrides
+    Puma::Server::STAT_METHODS.to_h { |key| [key, 0] }.merge(overrides)
   end
 
-  def cluster_launcher(worker_status:, worker_handles: [])
-    config = Puma::Configuration.new { |user| user.workers worker_status.size }
-    launcher = Puma::Launcher.new(config)
-    allow(launcher).to receive(:stats).and_return(worker_status: worker_status)
-    allow(launcher).to receive(:workers).and_return(worker_handles)
-    launcher
-  end
-
-  let(:launcher) do
-    cluster_launcher(
-      worker_status: [
-        {
+  describe "#to_h" do
+    context "cluster mode" do
+      let(:worker) do
+        instance_double(
+          Puma::Cluster::WorkerHandle,
           index: 0,
           pid: 123,
-          last_status: { backlog: 0, running: 1, pool_capacity: 5, max_threads: 5, requests_count: 1 }
-        }
-      ],
-      worker_handles: [
-        double(
-          "WorkerHandle",
-          index: 0,
-          enhanced_stats: default_enhanced_stats
-        )
-      ]
-    )
-  end
-
-  it "builds public contract from cluster handles" do
-    payload = described_class.build(launcher)
-
-    expect(payload[:schema_version]).to eq(described_class::SCHEMA_VERSION)
-    expect(payload[:meta][:mode]).to eq("cluster")
-    expect(payload[:summary][:requests_in_flight]).to eq(1)
-    expect(payload[:workers].first[:process][:rss_bytes]).to eq(100)
-    expect(payload[:workers].first[:requests][:meta][:request_limit]).to eq(100)
-    expect(payload[:workers].first[:requests][:items].first[:started_at]).to be_a(String)
-    expect(payload[:workers].first[:requests][:items].first).not_to have_key(:elapsed_ms)
-  end
-
-  it "leaves synced_at null when cluster handles have no enhanced data" do
-    launcher = cluster_launcher(
-      worker_status: [
-        {
-          index: 0,
-          pid: 123,
-          last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5, requests_count: 0 }
-        }
-      ],
-      worker_handles: []
-    )
-
-    payload = described_class.build(launcher)
-
-    expect(payload[:workers].first[:synced_at]).to be_nil
-    expect(payload[:workers].first[:process]).to eq(Puma::Enhanced::Stats::ProcessMetrics::EMPTY)
-    expect(payload[:summary][:workers_reporting]).to eq(0)
-  end
-
-  it "skips handle lookup for non-Puma launchers" do
-    launcher = instance_double(
-      "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-      stats: {
-        worker_status: [
-          {
-            index: 0,
-            pid: 123,
-            last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5, requests_count: 0 }
-          }
-        ]
-      }
-    )
-
-    payload = described_class.build(launcher)
-
-    expect(payload[:workers].first[:synced_at]).to be_nil
-    expect(payload[:workers].first[:requests][:items]).to be_empty
-  end
-
-  it "aggregates summary metrics across workers" do
-    launcher = cluster_launcher(
-      worker_status: [
-        {
-          index: 0,
-          pid: 123,
-          last_status: { backlog: 0, running: 1, pool_capacity: 5, max_threads: 5, requests_count: 0 }
-        },
-        {
-          index: 1,
-          pid: 124,
-          last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5, requests_count: 0 }
-        }
-      ],
-      worker_handles: [
-        double(
-          "WorkerHandle",
-          index: 0,
-          enhanced_stats: default_enhanced_stats(
-            items: [{ id: "a", started_at: Time.now.utc.iso8601 }],
-            process: { rss_bytes: 1, cpu_percent: 1.0 },
-            dropped_count: 1
+          last_enhanced_stats: default_stats(backlog: 2).merge(
+            items: [{ id: "req" }],
+            dropped_count: 1,
+            truncated: true,
+            synced_at: "2026-01-01T12:00:00Z"
           )
-        ),
-        double(
-          "WorkerHandle",
-          index: 1,
-          enhanced_stats: {
-            items: [],
-            process: nil,
-            dropped_count: 0,
-            truncated: false,
-            synced_at: nil
-          }
         )
-      ]
-    )
+      end
 
-    summary = described_class.build(launcher)[:summary]
+      it "builds workers with puma stats from the enhanced cache" do
+        payload = described_class.new(workers: [worker], worker_check_interval: 5).to_h
 
-    expect(summary).to eq(
-      workers_total: 2,
-      workers_reporting: 1,
-      workers_stale: 1,
-      requests_in_flight: 1,
-      requests_dropped_total: 1,
-      requests_truncated: false,
-      backlog_total: 0,
-      busy_threads_total: 0,
-      max_threads_total: 10,
-      pool_capacity_total: 10
-    )
-  end
-
-  it "aggregates puma pool metrics in summary" do
-    launcher = cluster_launcher(
-      worker_status: [
-        {
-          index: 0,
-          pid: 123,
-          last_status: { backlog: 2, running: 1, pool_capacity: 1, busy_threads: 4, max_threads: 5, requests_count: 0 }
-        },
-        {
-          index: 1,
-          pid: 124,
-          last_status: { backlog: 1, running: 0, pool_capacity: 3, busy_threads: 2, max_threads: 5, requests_count: 0 }
-        }
-      ],
-      worker_handles: [
-        double("WorkerHandle", index: 0, enhanced_stats: default_enhanced_stats(items: [])),
-        double("WorkerHandle", index: 1, enhanced_stats: default_enhanced_stats(items: []))
-      ]
-    )
-
-    summary = described_class.build(launcher)[:summary]
-
-    expect(summary[:backlog_total]).to eq(3)
-    expect(summary[:busy_threads_total]).to eq(6)
-    expect(summary[:max_threads_total]).to eq(10)
-    expect(summary[:pool_capacity_total]).to eq(4)
-  end
-
-  it "sets requests_truncated when any worker truncated fields" do
-    launcher = cluster_launcher(
-      worker_status: [{ index: 0, pid: 123, last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5 } }],
-      worker_handles: [
-        double(
-          "WorkerHandle",
-          index: 0,
-          enhanced_stats: default_enhanced_stats(truncated: true)
+        expect(payload[:schema_version]).to eq(1)
+        expect(payload[:meta][:mode]).to eq("cluster")
+        expect(payload[:workers].first[:puma][:backlog]).to eq(2)
+        expect(payload[:workers].first[:requests][:items].first[:id]).to eq("req")
+        expect(payload[:summary]).to include(
+          workers_total: 1,
+          workers_reporting: 1,
+          workers_stale: 0,
+          requests_in_flight: 1,
+          requests_dropped_total: 1,
+          requests_truncated: true,
+          backlog_total: 2
         )
-      ]
-    )
+      end
 
-    expect(described_class.build(launcher)[:summary][:requests_truncated]).to be(true)
-  end
+      it "counts stale workers without synced_at" do
+        stale = instance_double(
+          Puma::Cluster::WorkerHandle,
+          index: 1,
+          pid: 456,
+          last_enhanced_stats: Puma::Enhanced::Stats::WorkerHandle::EMPTY_ENHANCED_STATS.dup
+        )
 
-  it "builds single mode when launcher stats are empty" do
-    launcher = instance_double(
-      "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-      stats: {}
-    )
+        payload = described_class.new(workers: [worker, stale], worker_check_interval: 5).to_h
 
-    payload = described_class.build(launcher)
+        expect(payload[:summary][:workers_stale]).to eq(1)
+        expect(payload[:summary][:workers_reporting]).to eq(1)
+      end
 
-    expect(payload[:meta][:mode]).to eq("single")
-    expect(payload[:workers].first[:puma]).to eq(
-      Puma::Server::STAT_METHODS.to_h { |key| [key, 0] }
-    )
-  end
+      it "defaults missing registry fields" do
+        sparse = instance_double(
+          Puma::Cluster::WorkerHandle,
+          index: 2,
+          pid: 789,
+          last_enhanced_stats: { synced_at: "2026-01-01T12:00:00Z" }
+        )
 
-  it "reports empty cluster workers" do
-    launcher = cluster_launcher(worker_status: [], worker_handles: [])
+        row = described_class.new(workers: [sparse], worker_check_interval: 5).to_h[:workers].first
 
-    payload = described_class.build(launcher)
-
-    expect(payload[:meta][:mode]).to eq("cluster")
-    expect(payload[:summary][:workers_total]).to eq(0)
-    expect(payload[:workers]).to be_empty
-  end
-
-  describe "#workers" do
-    it "merges enhanced_stats from handles by index" do
-      launcher = cluster_launcher(
-        worker_status: [
-          { index: 0, pid: 1, last_status: { backlog: 2 } },
-          { index: 1, pid: 2, last_status: { backlog: 0 } }
-        ],
-        worker_handles: [
-          double("WorkerHandle", index: 0, enhanced_stats: { items: [{ id: "w0" }], synced_at: "t0" }),
-          double("WorkerHandle", index: 1, enhanced_stats: { items: [], synced_at: nil })
-        ]
-      )
-      snapshot = described_class.new(launcher)
-
-      rows = snapshot.send(:workers)
-
-      expect(rows[0][:last_status][:backlog]).to eq(2)
-      expect(rows[0][:enhanced_stats][:items].first[:id]).to eq("w0")
-      expect(rows[1][:enhanced_stats][:items]).to be_empty
+        expect(row[:requests][:items]).to eq([])
+        expect(row[:requests][:meta][:truncated]).to be(false)
+        expect(row[:requests][:meta][:dropped_count]).to eq(0)
+        expect(row[:puma][:backlog]).to eq(0)
+      end
     end
 
-    it "ignores stale enhanced_stats embedded in worker_status" do
-      launcher = cluster_launcher(
-        worker_status: [
-          {
-            index: 0,
-            pid: 1,
-            last_status: { backlog: 0 },
-            enhanced_stats: { items: [{ id: "stale" }] }
-          }
-        ],
-        worker_handles: [
-          double("WorkerHandle", index: 0, enhanced_stats: { items: [{ id: "live" }], synced_at: "t0" })
-        ]
-      )
+    context "single mode" do
+      let(:server) { instance_double(Puma::Server, stats: default_stats(running: 1)) }
 
-      rows = described_class.new(launcher).send(:workers)
+      before do
+        Puma::Enhanced::Stats::CurrentRequests.reset!
+        Puma::Enhanced::Stats::CurrentRequests.register(
+          "REQUEST_METHOD" => "GET",
+          "PATH_INFO" => "/live",
+          "QUERY_STRING" => "",
+          "REMOTE_ADDR" => "127.0.0.1",
+          "action_dispatch.request_id" => "snapshot-single"
+        )
+      end
 
-      expect(rows.first[:enhanced_stats][:items].first[:id]).to eq("live")
-    end
+      it "reads live registry and server stats" do
+        frozen = Time.utc(2026, 1, 1, 12, 0, 0)
+        allow(Time).to receive(:now).and_return(frozen)
 
-    it "uses empty enhanced_stats when handle index is missing" do
-      launcher = cluster_launcher(
-        worker_status: [{ index: 0, pid: 1, last_status: {} }],
-        worker_handles: [double("WorkerHandle", index: 1, enhanced_stats: { items: [{ id: "other" }] })]
-      )
+        payload = described_class.new(server: server, worker_check_interval: 5).to_h
 
-      rows = described_class.new(launcher).send(:workers)
-
-      expect(rows.first[:enhanced_stats]).to eq(items: [])
-    end
-
-    it "falls back to stats when single mode has no last_status" do
-      launcher = instance_double(
-        "Launcher",
-        config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-        stats: { backlog: 3, running: 1, pool_capacity: 5, max_threads: 5, requests_count: 1 }
-      )
-      Puma::Enhanced::Stats::CurrentRequests.reset!
-
-      row = described_class.new(launcher).send(:workers).first
-
-      expect(row[:last_status][:backlog]).to eq(3)
-      expect(row[:enhanced_stats][:items]).to be_empty
-    end
-  end
-
-  context "single mode" do
-    let(:launcher) do
-      instance_double(
-        "Launcher",
-        config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-        stats: {
-          backlog: 0,
-          running: 1,
-          pool_capacity: 5,
-          max_threads: 5,
-          requests_count: 3,
-          last_status: { backlog: 0, running: 1, pool_capacity: 5, max_threads: 5, requests_count: 3 }
-        }
-      )
-    end
-
-    before do
-      Puma::Enhanced::Stats::CurrentRequests.reset!
-      Puma::Enhanced::Stats::CurrentRequests.register(
-        "REQUEST_METHOD" => "GET",
-        "PATH_INFO" => "/slow",
-        "QUERY_STRING" => "",
-        "REMOTE_ADDR" => "127.0.0.1",
-        "action_dispatch.request_id" => "snapshot-slow-request"
-      )
-    end
-
-    it "reads live registry and process metrics" do
-      payload = described_class.build(launcher)
-
-      expect(payload[:meta][:mode]).to eq("single")
-      expect(payload[:workers].size).to eq(1)
-      expect(payload[:workers].first[:requests][:items].first[:path_info]).to end_with("/slow")
-      expect(payload[:workers].first[:process]).to include(:rss_bytes, :cpu_percent)
+        expect(payload[:meta][:mode]).to eq("single")
+        expect(payload[:workers].first[:puma][:running]).to eq(1)
+        expect(payload[:workers].first[:requests][:items].first[:id]).to eq("snapshot-single")
+        expect(payload[:workers].first[:synced_at]).to eq(payload[:meta][:collected_at])
+      end
     end
   end
 end

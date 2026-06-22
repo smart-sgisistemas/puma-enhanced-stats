@@ -2,8 +2,6 @@
 
 require "singleton"
 
-require_relative "process_metrics"
-
 module Puma
   module Enhanced
     module Stats
@@ -16,9 +14,12 @@ module Puma
           def reset! = instance.reset!
           def register(env) = instance.register(env)
           def unregister(env) = instance.unregister(env)
-          def config=(value)
+          def config= value
             instance.config = value
           end
+
+          def config = instance.config
+
           def snapshot = instance.snapshot
         end
 
@@ -30,8 +31,12 @@ module Puma
           @config = Configuration.default
         end
 
-        def config=(value)
+        def config= value
           @mutex.synchronize { @config = value }
+        end
+
+        def config
+          @mutex.synchronize { @config }
         end
 
         def reset!
@@ -44,17 +49,21 @@ module Puma
 
         def register env
           @mutex.synchronize do
-            return if reject_new_when_full?
-
-            evict_when_full_keep_longest!
+            if full?
+              @dropped_count += 1
+              evict_newest! if @config.keep_longest?
+              return if @config.reject_new?
+            end
           end
 
           entry, truncated = build_entry env
 
           @mutex.synchronize do
-            return if reject_new_when_full?
-
-            evict_when_full_keep_longest!
+            if full?
+              @dropped_count += 1
+              evict_newest! if @config.keep_longest?
+              return if @config.reject_new?
+            end
 
             @truncated = true if truncated
             @entries[env["action_dispatch.request_id"]] = entry
@@ -68,7 +77,7 @@ module Puma
         end
 
         def snapshot
-          state = @mutex.synchronize do
+          @mutex.synchronize do
             {
               items: @entries.values,
               dropped_count: @dropped_count,
@@ -78,33 +87,17 @@ module Puma
               @truncated = false
             end
           end
-
-          state.merge process: ProcessMetrics.snapshot
         end
 
         private
 
-        def full? = @entries.size >= @config.request_limit
-
-        def reject_new_when_full?
-          return false unless full?
-          return false unless @config.limit_policy == :reject_new
-
-          @dropped_count += 1
-          true
-        end
-
-        def evict_when_full_keep_longest!
-          return unless full?
-          return unless @config.limit_policy == :keep_longest
-
-          evict_newest!
-          @dropped_count += 1
+        def full?
+          @entries.size >= @config.request_limit
         end
 
         def build_entry env
-          request_fields, request_truncated = build_fields(env, namespace: :request)
-          session_fields, session_truncated = build_fields(env.fetch("rack.session", {}), namespace: :session)
+          request_fields, request_truncated = build_fields env, namespace: :request
+          session_fields, session_truncated = build_fields env.fetch("rack.session", {}), namespace: :session
           [request_fields.merge(session: session_fields), request_truncated || session_truncated]
         end
 

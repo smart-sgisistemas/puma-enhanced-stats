@@ -30,7 +30,7 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
-  config.filter_run_exclusions[:integration] = true if ENV["SKIP_INTEGRATION"]
+  config.filter_run_excluding :integration if ENV["SKIP_INTEGRATION"]
 
   config.after(:each, :integration) do
     IntegrationServer.reset_gem_state!

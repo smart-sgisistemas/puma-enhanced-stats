@@ -1,15 +1,14 @@
 # Puma::Enhanced::Stats
 
-Extended statistics for **Puma 8+** on **Rails 7+**: in-flight HTTP requests, thread-pool counters, and worker process metrics exposed through a stable JSON contract on the control app.
+Extended statistics for **Puma 8+** on **Rails 7+**: in-flight HTTP requests and thread-pool counters exposed through a stable JSON contract on the control app.
 
 ## Overview
 
 | Capability | Description |
 |------------|-------------|
 | In-flight requests | `id`, `started_at`, method, path, client IP, and optional session fields while a request is active |
-| Puma pool stats | `backlog`, `running`, `busy_threads`, `pool_capacity`, and related counters |
-| Process metrics | RSS (bytes) and interval CPU % (top-style) via `/proc` on Linux |
-| Cluster aggregation | Master merges enhanced payloads synced from worker pings |
+| Puma pool stats | `backlog`, `running`, `busy_threads`, `pool_capacity`, and related counters (synced with in-flight data in cluster mode) |
+| Cluster aggregation | Master merges enhanced payloads from workers over a dedicated pipe |
 
 Activation is automatic via Bundler. Defaults work with only a Gemfile entry.
 
@@ -20,13 +19,12 @@ Activation is automatic via Bundler. Defaults work with only a Gemfile entry.
 - Ruby >= 3.0
 - Rails >= 7.0, < 8
 - Puma >= 8.0, < 9
-- Linux (for worker `rss_bytes` / `cpu_percent`; other platforms return `null`)
 
 ## Installation
 
 ```ruby
 # Gemfile
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.4.3"
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.5.0"
 ```
 
 ```bash
@@ -76,13 +74,13 @@ worker_check_interval 5
 
 ## JSON response
 
-Payload follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json) (`schema_version: 1`).
+The response follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json) (`schema_version: 1`), assembled by `Snapshot`.
 
 | Section | Purpose |
 |---------|---------|
 | `meta` | Timestamp, versions, `single` / `cluster` mode |
 | `summary` | Cluster-wide workers, in-flight counts, pool totals |
-| `workers[]` | Per-worker Puma stats, process metrics, in-flight `items` |
+| `workers[]` | Per-worker Puma stats and in-flight `items` |
 
 Each in-flight item includes required `id`, `started_at`, and `session` (empty object when no session fields are configured).
 
@@ -94,8 +92,7 @@ Native Puma endpoints are unchanged — enhanced data appears **only** on `/enha
 ## Limitations
 
 - **Streaming bodies** — requests leave the registry when the Rails stack returns, not when the body finishes sending ([architecture](docs/architecture.md)).
-- **Cluster freshness** — in-flight data reflects the last worker ping (up to `worker_check_interval` stale).
-- **Process metrics** — Linux only, via `/proc`; CPU is interval-based like `top` (`cpu_percent: null` on the first snapshot).
+- **Cluster freshness** — in-flight data and `workers[].puma` reflect the last enhanced pipe write (up to `worker_check_interval` stale).
 - **Rails required** — uses Rails middleware and `action_dispatch.request_id`.
 
 ## Terminal CLI

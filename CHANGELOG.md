@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## 0.5.0 — 2026-06-20
+
+### Added
+
+- **Dedicated pipe transport** — cluster workers send enhanced registry snapshots over a Unix pipe instead of piggybacking on the native `PIPE_PING` channel.
+- **`launcher.enhanced_stats`** — returns JSON v1 (`schema_version`, `meta`, `summary`, `workers`); cluster delegates to `Puma::Cluster#enhanced_stats`, single mode reads live registry via `Snapshot`.
+- **`Puma::Cluster::WorkerHandle` prepend** — `last_enhanced_stats` and `enhanced_ping!`, mirroring native `ping!` / `@last_status`.
+- **`Puma::Cluster` prepend** — pipe IO, reader thread, and `enhanced_stats`.
+- **`Puma.enhanced_stats` / `Puma.enhanced_stats_hash`** — in-process access via the same runner as `Puma.stats`.
+
+### Changed
+
+- **`Snapshot`** — assembles JSON v1 from worker cache (cluster) or live registry + `@server.stats` (single).
+- **Cluster `workers[].puma`** — sourced from `@server.stats` merged into the enhanced pipe payload (same snapshot as in-flight requests), not from `last_status`.
+- **`EMPTY_ENHANCED_STATS`** — includes all `Puma::Server::STAT_METHODS` keys at zero until the first ping.
+- Cluster sync interval remains Puma's `worker_check_interval`; staleness semantics unchanged (`synced_at` per worker).
+
+### Removed
+
+- **`WorkerWrite`** / **`ClusterWorker`** prepend — no mutation of the native worker ping pipe.
+- **`@enhanced_cache` on Cluster** — replaced by state on each `WorkerHandle`.
+- **`EnhancedStatsBuilder`** / **`PipeHub`** — pipe and payload assembly live on `Cluster` and `Snapshot`.
+- **Process metrics** (`ProcessMetrics`, RSS/CPU via `/proc`) — removed; use external tooling if needed.
+
+### Breaking
+
+- **Cluster restart required** when upgrading from 0.4.x — all workers must run the same gem version; there is no dual-read of legacy ping payloads.
+
 ## 0.4.3 — 2026-06-20
 
 ### Changed

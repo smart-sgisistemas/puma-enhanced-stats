@@ -17,7 +17,7 @@ A full sample lives at [spec/fixtures/enhanced-stats-v1.sample.json](../spec/fix
 
 | Field | Description |
 |-------|-------------|
-| `collected_at` | UTC ISO 8601 time when `Snapshot#build` ran on the master |
+| `collected_at` | UTC ISO 8601 time when `launcher.enhanced_stats` ran on the master |
 | `gem_version` | `Puma::Enhanced::Stats::VERSION` |
 | `puma_version` | Running Puma version |
 | `ruby_version` | Running Ruby version |
@@ -55,23 +55,13 @@ Use `summary` for dashboards; drill into `workers[]` for per-process detail.
 | `pid` | OS process id |
 | `synced_at` | UTC ISO 8601 time of the last cluster ping that stored enhanced stats; `null` until the first ping. In single mode, equals `meta.collected_at` |
 | `puma` | Thread-pool counters from `Puma::Server::STAT_METHODS` |
-| `process` | `rss_bytes`, `cpu_percent` from `/proc` on Linux; `null` elsewhere |
 | `requests` | In-flight registry snapshot for this worker |
 
 ### `workers[].puma`
 
 Mirrors Puma native stats: `backlog`, `running`, `pool_capacity`, `busy_threads`, `backlog_max`, `max_threads`, `requests_count`, `reactor_max`.
 
-These values come from Puma's worker status, **not** from the enhanced registry. `GET /stats` and `pumactl stats` remain unchanged.
-
-### `workers[].process`
-
-| Field | Description |
-|-------|-------------|
-| `rss_bytes` | Resident set size in bytes |
-| `cpu_percent` | CPU usage since the previous snapshot (top-style interval; `null` on first sample) |
-
-Sampled via `/proc` on Linux when the worker builds its ping payload (cluster) or when `/enhanced-stats` is read (single). Sampling runs **outside** the registry mutex (since 0.4.2). First snapshot returns `cpu_percent: null`.
+In **cluster** mode, values come from `@server.stats` merged into the enhanced pipe payload (same snapshot as in-flight requests). In **single** mode, they are read live from `@server.stats`. `GET /stats` and `pumactl stats` remain unchanged.
 
 ### `workers[].requests`
 
@@ -111,6 +101,7 @@ There is **no** `elapsed_ms` in v1; compute duration client-side from `started_a
 sequenceDiagram
   participant Client
   participant Master
+  participant WH as WorkerHandle
   participant Worker
 
   Note over Client,Worker: Single mode
@@ -118,10 +109,10 @@ sequenceDiagram
   Master->>Master: CurrentRequests.snapshot live
 
   Note over Client,Worker: Cluster mode
-  Worker->>Master: ping + enhanced_stats every worker_check_interval
-  Master->>Master: WorkerHandle stores payload
+  Worker->>Master: write @enhanced_write_io every worker_check_interval
+  Master->>WH: enhanced_ping! → last_enhanced_stats
   Client->>Master: GET /enhanced-stats
-  Master->>Master: Snapshot reads cached worker payloads
+  Master->>WH: last_enhanced_stats (puma keys + requests)
 ```
 
 In cluster mode, in-flight items may be up to one `worker_check_interval` stale relative to the worker process. Compare `synced_at` with `meta.collected_at` and watch `workers_stale`.

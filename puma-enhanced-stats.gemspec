@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
 
   spec.summary = "In-flight request and worker metrics for Puma via the control app."
   spec.description = "Tracks in-flight HTTP requests per Puma worker and exposes them with " \
-                     "thread-pool and process metrics through GET /enhanced-stats and " \
+                     "thread-pool counters through GET /enhanced-stats and " \
                      "pumactl enhanced-stats on Rails 7+ applications."
   spec.homepage = "https://github.com/smart-sgisistemas/puma-enhanced-stats"
   spec.license = "MIT"

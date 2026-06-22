@@ -6,10 +6,10 @@ require "rack"
 RSpec.describe Puma::App::Status do
   let(:token) { "secret" }
   let(:launcher) do
-    double(
-      "launcher",
-      config: double(options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-      stats: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5, requests_count: 0 }
+    Puma::Launcher.new(
+      Puma::Configuration.new do |user|
+        user.worker_check_interval 5
+      end
     )
   end
 

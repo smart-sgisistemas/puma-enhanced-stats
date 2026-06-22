@@ -23,20 +23,27 @@ RSpec.describe "cluster mode control app", :integration do
     IntegrationServer.stop_puma_server(server)
   end
 
-  it "aggregates enhanced stats from workers via ping sync" do
+  it "aggregates enhanced stats from workers via dedicated pipe sync" do
     2.times { IntegrationServer.trigger_slow_request(@server[:app_port]) }
-    sleep 6
 
-    payload = IntegrationServer.fetch_enhanced_stats(
-      control_port: @server[:control_port],
-      token: @server[:token]
-    )
+    payload = nil
+    20.times do
+      payload = IntegrationServer.fetch_enhanced_stats(
+        control_port: @server[:control_port],
+        token: @server[:token]
+      )
+      reporting = payload.dig("summary", "workers_reporting").to_i
+      in_flight = payload.dig("summary", "requests_in_flight").to_i
+      break if reporting >= 1 && in_flight >= 1
+
+      sleep 1
+    end
 
     expect(payload["schema_version"]).to eq(1)
     expect(payload["meta"]["mode"]).to eq("cluster")
     expect(payload["workers"].size).to eq(2)
-    expect(payload["workers"].map { |w| w["synced_at"] }).to all(satisfy { |value| value && !value.empty? })
-    expect(payload["workers"].sum { |w| w.dig("puma", "requests_count") || 0 }).to be >= 1
+    expect(payload["summary"]["workers_reporting"]).to be >= 1
+    expect(payload["summary"]["requests_in_flight"]).to be >= 1
 
     validate_schema(payload)
   end

@@ -58,6 +58,10 @@ module Puma
           @truncate_suffix = value.to_s
         end
 
+        def keep_longest? = @limit_policy == :keep_longest
+
+        def reject_new? = @limit_policy == :reject_new
+
         def fields_for(namespace) = @fields.fetch(namespace).values
 
         def register_fields namespace, *names, &block
@@ -65,7 +69,7 @@ module Puma
           raise Error, "#{namespace} with block accepts exactly one name" unless names.size == 1 if block
 
           names.each do |name|
-            @fields[namespace][name.to_s] = Field.new(name: name, block: block)
+            @fields[namespace][name.to_s] = Field.new name: name, block: block
           end
         end
       end

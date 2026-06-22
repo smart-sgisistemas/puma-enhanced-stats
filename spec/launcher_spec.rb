@@ -3,138 +3,47 @@
 require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats::Launcher do
-  let(:current_requests) { Puma::Enhanced::Stats::CurrentRequests }
+  describe "#runner" do
+    it "exposes the puma runner" do
+      launcher = Puma::Launcher.new(Puma::Configuration.new)
 
-  let(:launcher) do
-    config = Puma::Configuration.new do |user|
-      user.environment "development"
-    end
-    Puma::Launcher.new(config)
-  end
-
-  def run_with_stubbed_super launcher_instance
-    Puma::Launcher.class_eval do
-      alias_method :__stats_test_original_run, :run unless method_defined?(:__stats_test_original_run, false)
-
-      def run
-        :ran
-      end
-    end
-
-    described_class
-      .instance_method(:run)
-      .bind(launcher_instance)
-      .call
-  ensure
-    Puma::Launcher.class_eval do
-      alias_method :run, :__stats_test_original_run
-      remove_method :__stats_test_original_run
+      expect(launcher.runner).to be launcher.instance_variable_get(:@runner)
     end
   end
 
-  before do
-    current_requests.reset!
-  end
+  describe "#run" do
+    it "assigns current_requests config before boot" do
+      custom = Puma::Enhanced::Stats::Configuration.new.tap { |c| c.request_limit = 9 }
+      launcher = Puma::Launcher.new(Puma::Configuration.new)
+      launcher.config.options[:enhanced_stats] = custom
 
-  def before_worker_boot_hooks config
-    config.options.default_options[:before_worker_boot] || []
-  end
+      allow(launcher).to receive(:setup_signals)
+      allow(launcher).to receive(:set_process_title)
+      allow(launcher.instance_variable_get(:@runner)).to receive(:run)
 
-  describe "before_worker_boot" do
-    let(:cluster_launcher) do
-      config = Puma::Configuration.new do |user|
-        user.workers 2
-      end
-      Puma::Launcher.new(config)
-    end
+      launcher.run
 
-    let(:single_launcher) do
-      Puma::Launcher.new(Puma::Configuration.new)
-    end
-
-    it "registers the hook only in cluster mode" do
-      run_with_stubbed_super cluster_launcher
-      run_with_stubbed_super single_launcher
-
-      cluster_hooks = before_worker_boot_hooks cluster_launcher.config
-      single_hooks = before_worker_boot_hooks single_launcher.config
-
-      expect(cluster_hooks.length).to eq(1)
-      expect(cluster_hooks.first[:cluster_only]).to be true
-      expect(single_hooks.to_a).to be_empty
-    end
-
-    it "clears the registry when the hook runs" do
-      current_requests.register(
-        "REQUEST_METHOD" => "GET",
-        "PATH_INFO" => "/",
-        "QUERY_STRING" => "",
-        "REMOTE_ADDR" => "127.0.0.1",
-        "action_dispatch.request_id" => "launcher-hook-request"
-      )
-
-      run_with_stubbed_super cluster_launcher
-      hook = before_worker_boot_hooks(cluster_launcher.config).first
-      hook[:block].call(0)
-
-      expect(current_requests.snapshot[:items]).to be_empty
+      expect(Puma::Enhanced::Stats::CurrentRequests.send(:instance).instance_variable_get(:@config)).to equal(custom)
     end
   end
 
-  it "keeps current_requests config stable across repeated runs" do
-    run_with_stubbed_super launcher
-    config = current_requests.send(:instance).instance_variable_get(:@config)
+  describe "#enhanced_stats" do
+    it "delegates to the cluster runner" do
+      launcher = Puma::Launcher.new(Puma::Configuration.new { |user| user.workers 1 })
+      cluster = launcher.instance_variable_get(:@runner)
+      payload = { schema_version: 1, meta: {}, summary: {}, workers: [] }
+      allow(cluster).to receive(:enhanced_stats).and_return(payload)
 
-    run_with_stubbed_super launcher
-
-    expect(current_requests.send(:instance).instance_variable_get(:@config)).to equal(config)
-  end
-
-  it "assigns current_requests config from launcher options" do
-    custom = Puma::Enhanced::Stats::Configuration.new.tap { |c| c.request_limit = 7 }
-    launcher.config.options[:enhanced_stats] = custom
-
-    run_with_stubbed_super launcher
-
-    expect(current_requests.send(:instance).instance_variable_get(:@config)).to equal(custom)
-  end
-
-  it "returns nil workers in single mode" do
-    single = Puma::Launcher.new(Puma::Configuration.new)
-
-    expect(single.workers).to be_nil
-  end
-
-  it "exposes worker handles when clustered" do
-    launcher = Puma::Launcher.new(Puma::Configuration.new { |user| user.workers 2 })
-
-    expect(launcher.workers).to be_an(Array)
-  end
-
-  describe "worker_check_interval" do
-    let(:cluster_launcher) do
-      config = Puma::Configuration.new do |user|
-        user.workers 2
-        user.worker_check_interval 30
-      end
-      Puma::Launcher.new(config)
+      expect(launcher.enhanced_stats).to equal(payload)
     end
 
-    it "does not override worker_check_interval in cluster mode" do
-      run_with_stubbed_super cluster_launcher
+    it "delegates to the single runner" do
+      launcher = Puma::Launcher.new(Puma::Configuration.new)
+      single = launcher.instance_variable_get(:@runner)
+      payload = { schema_version: 1, meta: {}, summary: {}, workers: [] }
+      allow(single).to receive(:enhanced_stats).and_return(payload)
 
-      expect(cluster_launcher.config.options[:worker_check_interval]).to eq(30)
-    end
-
-    it "does not override worker_check_interval in single mode" do
-      config = Puma::Configuration.new do |user|
-        user.worker_check_interval 30
-      end
-      single_launcher = Puma::Launcher.new(config)
-
-      run_with_stubbed_super single_launcher
-
-      expect(single_launcher.config.options[:worker_check_interval]).to eq(30)
+      expect(launcher.enhanced_stats).to equal(payload)
     end
   end
 end

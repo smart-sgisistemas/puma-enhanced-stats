@@ -5,7 +5,9 @@ module Puma
     module Stats
       module DSL
         class Builder
-          def initialize(configuration) = @configuration = configuration
+          def initialize configuration
+            @configuration = configuration
+          end
 
           def request_limit(value) = @configuration.request_limit = value
 
@@ -15,9 +17,13 @@ module Puma
 
           def truncate_suffix(value) = @configuration.truncate_suffix = value
 
-          def request(*names, &block) = @configuration.register_fields(:request, *names, &block)
+          def request(*names, &block)
+            @configuration.register_fields :request, *names, &block
+          end
 
-          def session(*names, &block) = @configuration.register_fields(:session, *names, &block)
+          def session(*names, &block)
+            @configuration.register_fields :session, *names, &block
+          end
         end
 
         def enhanced_stats &block

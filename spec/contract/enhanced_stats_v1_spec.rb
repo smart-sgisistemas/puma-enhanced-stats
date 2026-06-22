@@ -28,19 +28,8 @@ RSpec.describe "enhanced-stats-v1 schema" do
     expect(schema.validate(invalid).to_a).not_to be_empty
   end
 
-  it "validates Snapshot.build output for single mode" do
-    launcher = instance_double(
-      "Launcher",
-      config: instance_double("Config", options: { enhanced_stats: Puma::Enhanced::Stats::Configuration.new, worker_check_interval: 5 }),
-      stats: {
-        backlog: 0,
-        running: 0,
-        pool_capacity: 5,
-        max_threads: 5,
-        requests_count: 0,
-        last_status: { backlog: 0, running: 0, pool_capacity: 5, max_threads: 5, requests_count: 0 }
-      }
-    )
+  it "validates launcher.enhanced_stats output for single mode" do
+    launcher = Puma::Launcher.new(Puma::Configuration.new { |user| user.worker_check_interval 5 })
 
     Puma::Enhanced::Stats::CurrentRequests.reset!
 
@@ -52,8 +41,7 @@ RSpec.describe "enhanced-stats-v1 schema" do
     }
     Puma::Enhanced::Stats::CurrentRequests.register(env)
 
-    payload = Puma::Enhanced::Stats::Snapshot.build(launcher)
-    json = JSON.parse(JSON.generate(payload))
+    json = JSON.parse(JSON.generate(launcher.enhanced_stats))
 
     expect(json["workers"].first["puma"].keys).to match_array(Puma::Server::STAT_METHODS.map(&:to_s))
     expect(json["workers"].first["requests"]["items"].first["session"]).to eq({})
@@ -62,39 +50,51 @@ RSpec.describe "enhanced-stats-v1 schema" do
     Puma::Enhanced::Stats::CurrentRequests.reset!
   end
 
-  it "validates Snapshot.build output for cluster mode" do
-    launcher = begin
-      config = Puma::Configuration.new { |user| user.workers 1 }
-      instance = Puma::Launcher.new(config)
-      allow(instance).to receive(:stats).and_return(
-        worker_status: [
-          {
-            index: 0,
-            pid: 123,
-            last_status: Puma::Server::STAT_METHODS.to_h { |key| [key, 0] }
-          }
-        ]
-      )
-      allow(instance).to receive(:workers).and_return(
-        [
-          double(
-            "WorkerHandle",
-            index: 0,
-            enhanced_stats: {
-              items: [],
-              process: Puma::Enhanced::Stats::ProcessMetrics::EMPTY,
-              dropped_count: 0,
+  it "validates launcher.enhanced_stats output for cluster mode" do
+    launcher = Puma::Launcher.new(Puma::Configuration.new { |user| user.workers 1 })
+    allow(launcher.instance_variable_get(:@runner)).to receive(:enhanced_stats).and_return(
+      schema_version: 1,
+      meta: {
+        collected_at: Time.now.utc.iso8601,
+        gem_version: Puma::Enhanced::Stats::VERSION,
+        puma_version: Puma::Const::PUMA_VERSION,
+        ruby_version: RUBY_VERSION,
+        mode: "cluster",
+        worker_check_interval_seconds: 5
+      },
+      summary: {
+        workers_total: 1,
+        workers_reporting: 1,
+        workers_stale: 0,
+        requests_in_flight: 0,
+        requests_dropped_total: 0,
+        requests_truncated: false,
+        backlog_total: 0,
+        busy_threads_total: 0,
+        max_threads_total: 0,
+        pool_capacity_total: 0
+      },
+      workers: [
+        {
+          index: 0,
+          pid: 123,
+          synced_at: Time.now.utc.iso8601,
+          puma: Puma::Server::STAT_METHODS.to_h { |key| [key, 0] },
+          requests: {
+            meta: {
+              count: 0,
+              request_limit: 100,
+              limit_policy: "keep_longest",
               truncated: false,
-              synced_at: Time.now.utc.iso8601
-            }
-          )
-        ]
-      )
-      instance
-    end
+              dropped_count: 0
+            },
+            items: []
+          }
+        }
+      ]
+    )
 
-    payload = Puma::Enhanced::Stats::Snapshot.build(launcher)
-    json = JSON.parse(JSON.generate(payload))
+    json = JSON.parse(JSON.generate(launcher.enhanced_stats))
 
     expect(json["meta"]["mode"]).to eq("cluster")
     expect(schema.validate(json).to_a).to be_empty
