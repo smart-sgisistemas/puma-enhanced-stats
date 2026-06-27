@@ -106,7 +106,7 @@ Pipe parse/store errors are discarded (fail-open). Malformed wire lines never af
 The codebase is intentionally monolithic. Likely future additions (not implemented):
 
 - Length-prefix framing for payloads larger than the pipe buffer (~64 KB)
-- Optional terminal CLI (removed in 0.4.0)
+- Terminal CLI (removed in 0.4.0; reintroduced on CLI branch — see [CLI TDD](cli/tdd.md))
 - Body-close lifecycle for streaming accuracy
 
 ## Source layout
@@ -127,3 +127,30 @@ lib/puma/enhanced/stats/
   field.rb
   version.rb
 ```
+
+## Terminal CLI (standalone)
+
+The interactive dashboard (`puma-enhanced-stats`) is **not** loaded with the gem server path. It lives under `lib/puma/enhanced/stats/cli/` and is required only from executables ([ADR 0001](adr/0001-cli-load-isolated-from-rails.md)).
+
+```mermaid
+flowchart TB
+  subgraph server [Gem server — Rails boot]
+    Railtie --> Middleware
+    Middleware --> Snapshot
+    Snapshot --> Status["GET /enhanced-stats"]
+  end
+  subgraph cli [CLI — exe only]
+    Exe --> Fetcher
+    Fetcher -->|"HTTP"| Status
+    Exe --> ProcessSampler
+    ProcessSampler --> OS["ps / cgroup"]
+  end
+```
+
+| Surface | Loads CLI? | Output |
+|---------|------------|--------|
+| Rails app with gem | No | JSON via HTTP only |
+| `bundle exec puma-enhanced-stats` | Yes | TUI dashboard |
+| `pumactl enhanced-stats` | No | JSON to stdout |
+
+Full design: [cli/tdd.md](cli/tdd.md). Visual spec: [cli/ui-spec.md](cli/ui-spec.md).

@@ -92,7 +92,23 @@ Native Puma endpoints are unchanged — enhanced data appears **only** on `/enha
 
 ## Terminal CLI
 
-The terminal dashboard CLI was **removed in v0.4.0** (planned to return in a future release). Use HTTP or `pumactl enhanced-stats` instead.
+Interactive dashboard (post-v1.0.0 CLI branch). Loaded only from executables — not on Rails boot.
+
+```bash
+# Watch dashboard (default)
+bundle exec puma-enhanced-stats
+
+# Single snapshot
+bundle exec puma-enhanced-stats --no-watch
+
+# Local dev without Puma
+bundle exec puma-enhanced-stats-stub --workers 3 --scenario mixed
+bundle exec puma-enhanced-stats -C tcp://127.0.0.1:9293 -T dev
+```
+
+In watch mode, press **`?`** for field reference. Design docs: [docs/cli/README.md](docs/cli/README.md).
+
+Docker (recommended): `docker compose exec web bundle exec puma-enhanced-stats` — see [operations](docs/operations.md#terminal-cli-and-docker).
 
 ## Development
 

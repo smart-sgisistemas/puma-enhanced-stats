@@ -156,8 +156,42 @@ Compare `worker_status[].last_enhanced_checkin` with `collected_at` to judge sta
 
 Expected. Enhanced data is **only** on `/enhanced-stats` and `pumactl enhanced-stats`. Native Puma stats are unchanged.
 
+## Terminal CLI and Docker
+
+The CLI reads **local** process metrics (`ps`, cgroup memory) for worker PIDs from the JSON. For coherent TOP, PROCESSES, and RSS bars, run it **in the same environment as Puma**.
+
+### Recommended
+
+```bash
+docker compose exec web bundle exec puma-enhanced-stats
+```
+
+Uses the **web** service cgroup/memory limit and can see worker PIDs on that container.
+
+### Compose memory limits
+
+```yaml
+services:
+  web:
+    mem_limit: 512m
+```
+
+Without `mem_limit`, the container may see host/VM memory — alert thresholds (75%/90%) use that larger total. Set limits in compose so bars match deploy caps.
+
+### Not recommended
+
+| How you run CLI | Effect |
+|-----------------|--------|
+| Separate `cli` service, HTTP to `web` | CLI cgroup ≠ Puma; `ps` on JSON PIDs fails → `—` |
+| On host, Puma in container | Remote PIDs; use `--json` or `--no-top` |
+
+Connection inside the app container: `ControlDiscovery` reads `config/puma.rb` and/or state file; or `-C tcp://127.0.0.1:9293 -T <token>`.
+
+See [CLI TDD — flags](cli/tdd.md#cli-flags) and [UI spec — degraded mode](cli/ui-spec.md#host-vs-puma-resourceattribution).
+
 ## Related docs
 
 - [JSON contract](json-contract.md)
 - [Architecture](architecture.md)
 - [Security](security.md)
+- [CLI TDD](cli/tdd.md)

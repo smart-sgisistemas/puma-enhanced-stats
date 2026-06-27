@@ -1,0 +1,30 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "optparse"
+require "puma/enhanced/stats/cli/stub_payload_builder"
+require "puma/enhanced/stats/cli/stub_server"
+
+options = { host: "127.0.0.1", port: 9293, token: "dev", workers: 3, stale: 0, scenario: "mixed" }
+parser = OptionParser.new do |opts|
+  opts.banner = "Usage: puma-enhanced-stats-stub [options]"
+  opts.on("--host HOST", "Bind host") { |v| options[:host] = v }
+  opts.on("--port PORT", Integer, "Bind port") { |v| options[:port] = v }
+  opts.on("-T", "--token TOKEN", "Auth token") { |v| options[:token] = v }
+  opts.on("--workers N", Integer, "Worker count") { |v| options[:workers] = v }
+  opts.on("--stale N", Integer, "Stale worker count") { |v| options[:stale] = v }
+  opts.on("--scenario NAME", "mixed, stale, truncated") { |v| options[:scenario] = v }
+end
+parser.parse!
+
+payload = Puma::Enhanced::Stats::CLI::StubPayloadBuilder.build(
+  scenario: options[:scenario],
+  workers: options[:workers],
+  stale: options[:stale]
+)
+Puma::Enhanced::Stats::CLI::StubServer.new(
+  host: options[:host],
+  port: options[:port],
+  token: options[:token],
+  payload: payload
+).start

@@ -25,7 +25,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) do
     tracked = `git ls-files -z 2>/dev/null`.split("\x0").reject(&:empty?)
     files = if tracked.empty?
-              Dir.glob("{lib,schema,docs}/**/*").select { |f| File.file?(f) } +
+              Dir.glob("{lib,exe,schema,docs}/**/*").select { |f| File.file?(f) } +
                 %w[README.md LICENSE.txt CHANGELOG.md]
             else
               tracked
@@ -35,8 +35,11 @@ Gem::Specification.new do |spec|
         f.start_with?(*%w[bin/ test/ spec/ features/ .git .github .idea/ appveyor Gemfile])
     end
   end
+  spec.bindir = "exe"
+  spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
+  spec.add_dependency "pastel", "~> 0.8"
   spec.add_dependency "puma", ">= 8.0", "< 9"
   spec.add_dependency "rails", ">= 7.0", "< 8"
 

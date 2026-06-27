@@ -33,6 +33,19 @@ First stable release. `/enhanced-stats` returns **Puma `GET /stats` + flat gem e
 - Rails >= 7.0, < 8
 - Puma >= 8.0, < 9
 
+## 0.6.0 — 2026-06-22
+
+### Added
+
+- **Terminal CLI** — `puma-enhanced-stats` interactive dashboard (watch mode default) with TOP, PROCESSES, SUMMARY (7 lines), workers, scroll, modals, and `~/.pesrc` prefs.
+- **`puma-enhanced-stats-stub`** — fake control app for local dev (`--scenario mixed|stale|truncated`).
+- **CLI enrichment** — `ProcessSampler`, `HostMetrics`, `CgroupMemory`, `ResourceAttribution` (Host vs Puma, outsiders).
+- **Six frame layouts** — stacked, two_column, split, grid, focus, compact; request display auto/inline/stack.
+
+### Changed
+
+- Gemspec declares `bindir`, `pastel ~> 0.8`, and CLI executables. CLI loads only from executables ([ADR 0001](docs/adr/0001-cli-load-isolated-from-rails.md)).
+
 ## 0.5.1 — 2026-06-22
 
 ### Changed

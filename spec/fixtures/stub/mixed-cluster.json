@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "collected_at": "2026-06-12T14:32:01Z",
+    "gem_version": "0.6.0",
+    "puma_version": "8.0.2",
+    "ruby_version": "3.2.2",
+    "mode": "cluster",
+    "worker_check_interval_seconds": 5
+  },
+  "summary": {
+    "workers_total": 3,
+    "workers_reporting": 2,
+    "workers_stale": 1,
+    "requests_in_flight": 7,
+    "requests_dropped_total": 2,
+    "requests_truncated": true,
+    "backlog_total": 3,
+    "busy_threads_total": 6,
+    "max_threads_total": 15,
+    "pool_capacity_total": 9
+  },
+  "workers": [
+    {
+      "index": 0,
+      "pid": 48201,
+      "synced_at": "2026-06-12T14:31:59Z",
+      "puma": {
+        "backlog": 0,
+        "running": 3,
+        "pool_capacity": 2,
+        "busy_threads": 3,
+        "max_threads": 5
+      },
+      "requests": {
+        "meta": {
+          "count": 2,
+          "request_limit": 100,
+          "limit_policy": "keep_longest",
+          "truncated": true,
+          "dropped_count": 0
+        },
+        "items": [
+          {
+            "id": "7f3a9c2b1d4e5f60",
+            "started_at": "2026-06-12T14:28:53Z",
+            "method": "GET",
+            "path_info": "/api/v2/organizations/acme-corp/reports/quarterly/2026/Q1/export/detailed",
+            "remote_ip": "203.0.113.45",
+            "session": { "user_id": "42", "tenant": "acme" }
+          },
+          {
+            "id": "a1b2c3d4",
+            "started_at": "2026-06-12T14:31:13Z",
+            "method": "POST",
+            "path_info": "/webhooks/stripe",
+            "remote_ip": "54.187.255.0"
+          }
+        ]
+      }
+    },
+    {
+      "index": 1,
+      "pid": 48202,
+      "synced_at": "2026-06-12T14:31:59Z",
+      "puma": {
+        "backlog": 2,
+        "running": 5,
+        "pool_capacity": 0,
+        "busy_threads": 5,
+        "max_threads": 5
+      },
+      "requests": {
+        "meta": {
+          "count": 1,
+          "request_limit": 100,
+          "limit_policy": "keep_longest",
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "items": [
+          {
+            "id": "b2c3d4e5",
+            "started_at": "2026-06-12T14:31:58Z",
+            "method": "GET",
+            "path_info": "/health",
+            "remote_ip": "127.0.0.1"
+          }
+        ]
+      }
+    },
+    {
+      "index": 2,
+      "pid": 48203,
+      "synced_at": null,
+      "puma": {
+        "backlog": 1,
+        "running": 0,
+        "pool_capacity": 0,
+        "busy_threads": 0,
+        "max_threads": 5
+      },
+      "requests": {
+        "meta": {
+          "count": 0,
+          "request_limit": 100,
+          "limit_policy": "keep_longest",
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "items": []
+      }
+    }
+  ]
+}

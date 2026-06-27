@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "collected_at": "2026-06-12T14:32:01Z",
+    "gem_version": "0.6.0",
+    "puma_version": "8.0.2",
+    "ruby_version": "3.2.2",
+    "mode": "cluster",
+    "worker_check_interval_seconds": 5
+  },
+  "summary": {
+    "workers_total": 1,
+    "workers_reporting": 1,
+    "workers_stale": 0,
+    "requests_in_flight": 1,
+    "requests_dropped_total": 0,
+    "requests_truncated": true,
+    "backlog_total": 0,
+    "busy_threads_total": 1,
+    "max_threads_total": 5,
+    "pool_capacity_total": 4
+  },
+  "workers": [
+    {
+      "index": 0,
+      "pid": 50001,
+      "synced_at": "2026-06-12T14:32:00Z",
+      "puma": { "backlog": 0, "running": 1, "pool_capacity": 4, "busy_threads": 1, "max_threads": 5 },
+      "requests": {
+        "meta": { "count": 1, "request_limit": 100, "limit_policy": "keep_longest", "truncated": true, "dropped_count": 0 },
+        "items": [
+          {
+            "id": "long1",
+            "started_at": "2026-06-12T14:31:00Z",
+            "method": "GET",
+            "path_info": "/api/v2/organizations/acme-corp/reports/quarterly/2026/Q1/export/detailed?format=csv&locale=pt-BR",
+            "remote_ip": "127.0.0.1"
+          }
+        ]
+      }
+    }
+  ]
+}
