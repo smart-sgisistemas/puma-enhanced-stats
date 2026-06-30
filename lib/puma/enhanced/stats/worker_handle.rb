@@ -4,29 +4,22 @@ module Puma
   module Enhanced
     module Stats
       module WorkerHandle
-        EMPTY_ENHANCED_STATS = {
-          items: [],
-          dropped_count: 0,
-          truncated: false,
-          synced_at: nil
-        }.merge(Puma::Server::STAT_METHODS.to_h { |key| [key, 0] }).freeze
-
         def initialize *args
-          @last_enhanced_stats = EMPTY_ENHANCED_STATS.dup
+          @last_enhanced_status = {
+            stats: Puma::Server::STAT_METHODS.to_h { |key| [key, 0] },
+            requests: []
+          }
           super
         end
 
-        attr_reader :last_enhanced_stats
+        attr_reader :last_enhanced_checkin, :last_enhanced_status
 
-        def enhanced_ping! snapshot
-          @last_enhanced_stats = {
-            items: snapshot[:items] || [],
-            dropped_count: snapshot[:dropped_count] || 0,
-            truncated: snapshot[:truncated] || false,
-            synced_at: Time.now.utc.iso8601
-          }.merge(Puma::Server::STAT_METHODS.to_h { |key| [key, snapshot[key] || 0] })
-        rescue StandardError
-          nil
+        def enhanced_ping! payload
+          @last_enhanced_checkin = Time.now.utc
+          @last_enhanced_status = {
+            stats: payload[:stats],
+            requests: payload[:requests]
+          }
         end
       end
     end

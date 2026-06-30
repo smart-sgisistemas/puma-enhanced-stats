@@ -5,7 +5,7 @@ module Puma
     module Stats
       class Railtie < Rails::Railtie
         initializer "puma_enhanced_stats.middleware" do |app|
-          app.middleware.use CurrentRequestsMiddleware
+          app.middleware.use Middleware
         end
       end
     end

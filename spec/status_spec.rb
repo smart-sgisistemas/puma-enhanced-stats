@@ -28,7 +28,8 @@ RSpec.describe Puma::App::Status do
     expect(status).to eq(200)
     expect(headers["content-type"]).to eq("application/json")
     payload = JSON.parse(body.first)
-    expect(payload["schema_version"]).to eq(1)
+    expect(payload).not_to have_key("schema_version")
+    expect(payload).to include("collected_at", "requests", "requests_in_flight", "versions")
   end
 
   it "rejects unauthenticated requests" do

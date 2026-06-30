@@ -6,7 +6,7 @@ require "puma/launcher"
 
 RSpec.describe Puma::Enhanced::Stats do
   it "has a version number" do
-    expect(Puma::Enhanced::Stats::VERSION).to eq("0.5.1")
+    expect(Puma::Enhanced::Stats::VERSION).to eq("1.0.0")
   end
 
   it "defines Error" do
@@ -54,16 +54,18 @@ RSpec.describe Puma::Enhanced::Stats do
     expect(Puma::ControlCLI::PRINTABLE_COMMANDS).to include("enhanced-stats")
   end
 
-  it "appends CurrentRequestsMiddleware via Railtie as the innermost layer" do
+  it "appends Middleware via Railtie as the innermost layer" do
     middlewares = Rails.application.middleware.map(&:klass)
 
-    expect(middlewares.last).to eq(Puma::Enhanced::Stats::CurrentRequestsMiddleware)
+    expect(middlewares.last).to eq(Puma::Enhanced::Stats::Middleware)
   end
 
   describe "Puma.enhanced_stats" do
     let(:launcher) { Puma::Launcher.new(Puma::Configuration.new) }
 
     it "reads enhanced stats from the same stats_object as Puma.stats" do
+      frozen = Time.utc(2026, 1, 1, 12, 0, 0)
+      allow(Time).to receive(:now).and_return(frozen)
       runner = launcher.instance_variable_get(:@runner)
 
       expect(Puma.enhanced_stats_hash).to eq(runner.enhanced_stats)
@@ -73,11 +75,13 @@ RSpec.describe Puma::Enhanced::Stats do
     it "exposes enhanced_stats_hash and JSON enhanced_stats" do
       hash = Puma.enhanced_stats_hash
 
-      expect(hash[:schema_version]).to eq(1)
-      expect(hash[:meta][:mode]).to eq("single")
+      expect(hash).not_to have_key(:schema_version)
+      expect(hash).to include(:collected_at, :requests, :requests_in_flight, :versions)
+      expect(hash[:versions][:"puma-enhanced-stats"]).to eq(Puma::Enhanced::Stats::VERSION)
 
       json = JSON.parse(Puma.enhanced_stats)
-      expect(json["schema_version"]).to eq(1)
+      expect(json).not_to have_key("schema_version")
+      expect(json).to include("collected_at", "requests", "requests_in_flight", "versions")
     end
   end
 end

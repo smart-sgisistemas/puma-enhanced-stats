@@ -1,25 +1,32 @@
 # frozen_string_literal: true
 
 RSpec.describe Puma::Enhanced::Stats::Single do
-  let(:single_launcher) { Puma::Launcher.new(Puma::Configuration.new) }
-  let(:single) { single_launcher.instance_variable_get(:@runner) }
+  let(:runner) do
+    Class.new do
+      attr_accessor :server
 
-  before { Puma::Enhanced::Stats::CurrentRequests.reset! }
+      prepend Puma::Enhanced::Stats::Single
 
-  it "reads the live registry in enhanced_stats" do
-    Puma::Enhanced::Stats::CurrentRequests.register(
-      "REQUEST_METHOD" => "GET",
-      "PATH_INFO" => "/live",
-      "QUERY_STRING" => "",
-      "REMOTE_ADDR" => "127.0.0.1",
-      "action_dispatch.request_id" => "single-enhanced-stats"
-    )
+      def initialize(server = nil)
+        @server = server
+      end
+    end.new(server)
+  end
 
-    payload = single.enhanced_stats
+  describe "#enhanced_stats" do
+    context "when server is absent" do
+      let(:server) { nil }
 
-    expect(payload[:workers].size).to eq(1)
-    expect(payload[:meta][:worker_check_interval_seconds]).to eq(0)
-    expect(payload[:workers].first[:requests][:items].first[:path_info]).to end_with("/live")
-    expect(payload[:summary][:workers_total]).to eq(1)
+      it "zero-fills pool counters" do
+        payload = runner.enhanced_stats
+
+        Puma::Server::STAT_METHODS.each do |key|
+          expect(payload[key]).to eq(0)
+        end
+        expect(payload[:requests]).to eq([])
+        expect(payload[:requests_in_flight]).to eq(0)
+        expect(payload[:versions][:"puma-enhanced-stats"]).to eq(Puma::Enhanced::Stats::VERSION)
+      end
+    end
   end
 end

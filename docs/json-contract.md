@@ -1,121 +1,71 @@
-# JSON contract (schema v1)
+# JSON contract
 
-The enhanced-stats payload is defined by [schema/enhanced-stats-v1.json](../schema/enhanced-stats-v1.json) and validated in CI via [spec/contract/enhanced_stats_v1_spec.rb](../spec/contract/enhanced_stats_v1_spec.rb).
+`/enhanced-stats` returns the same shape as Puma `GET /stats`, plus flat gem extensions. There is **no** `schema_version`, `meta`, or `summary` envelope.
 
-A full sample lives at [spec/fixtures/enhanced-stats-v1.sample.json](../spec/fixtures/enhanced-stats-v1.sample.json).
+| Artifact | Location |
+|----------|----------|
+| Schema | [schema/enhanced-stats-v1.json](../schema/enhanced-stats-v1.json) (`oneOf` cluster \| single) |
+| Sample (cluster) | [enhanced-stats-v1.sample.json](../spec/fixtures/enhanced-stats-v1.sample.json) |
 
-## Top-level shape
+CI validates via [spec/contract/enhanced_stats_v1_spec.rb](../spec/contract/enhanced_stats_v1_spec.rb).
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `schema_version` | integer | Always `1` for this contract |
-| `meta` | object | Collection metadata (timestamp, versions, mode) |
-| `summary` | object | Cluster-wide aggregates |
-| `workers` | array | One object per worker (or one synthetic row in single mode) |
+See [ADR 0008](adr/0008-enhanced-stats-puma-aligned-json.md).
 
-## `meta`
+## Cluster mode
 
-| Field | Description |
-|-------|-------------|
-| `collected_at` | UTC ISO 8601 time when `launcher.enhanced_stats` ran on the master |
-| `gem_version` | `Puma::Enhanced::Stats::VERSION` |
-| `puma_version` | Running Puma version |
-| `ruby_version` | Running Ruby version |
-| `mode` | `"single"` or `"cluster"` |
-| `worker_check_interval_seconds` | `0` in single mode (live read). In cluster, value from Puma `worker_check_interval` in `config/puma.rb` |
+Native Puma cluster keys, then flat aggregates, then enhanced worker rows, then `versions`:
 
-In **single** mode, enhanced data is read live from the in-flight registry when you query `/enhanced-stats`.
+| Key | Description |
+|-----|-------------|
+| `started_at`, `workers`, `phase`, `booted_workers`, `old_workers` | From native `/stats` |
+| `collected_at` | ISO 8601 (`iso8601(6)`) when the master assembled this response |
+| `workers_total`, `workers_reporting`, `workers_stale` | Worker row counts (`workers_reporting` = rows with non-null `last_enhanced_checkin`) |
+| `requests_in_flight` | Sum of `worker_status[].requests.size` |
+| `backlog_total`, `busy_threads_total`, `max_threads_total`, `pool_capacity_total` | Sums from `worker_status[].last_enhanced_status` |
+| `worker_status[]` | Native identity fields + enhanced overlay |
+| `versions` | Native Puma versions + `puma-enhanced-stats` |
 
-In **cluster** mode, worker rows reflect the **last worker ping** that carried `enhanced_stats`. Freshness is indicated by each worker's `synced_at` (see below).
-
-## `summary`
-
-Aggregates across all workers in the response:
+### `worker_status[]` (cluster)
 
 | Field | Description |
 |-------|-------------|
-| `workers_total` | Number of worker rows |
-| `workers_reporting` | Workers with non-null `synced_at` (cluster) |
-| `workers_stale` | `workers_total - workers_reporting` |
-| `requests_in_flight` | Sum of `workers[].requests.meta.count` |
-| `requests_dropped_total` | Sum of per-worker `dropped_count` deltas |
-| `requests_truncated` | `true` if any worker reported field truncation in the interval |
-| `backlog_total` | Sum of `workers[].puma.backlog` |
-| `busy_threads_total` | Sum of `workers[].puma.busy_threads` |
-| `max_threads_total` | Sum of `workers[].puma.max_threads` |
-| `pool_capacity_total` | Sum of `workers[].puma.pool_capacity` |
+| `index`, `pid`, `phase`, `booted`, `started_at` | From native `/stats` (native `last_checkin` / `last_status` are **not** exposed) |
+| `last_enhanced_checkin` | ISO 8601 (`iso8601(6)`) of last enhanced pipe write; `null` until first ping |
+| `last_enhanced_status` | Puma pool counters (`Puma::Server::STAT_METHODS`) from the enhanced pipe |
+| `requests` | Array of in-flight request entries |
 
-Use `summary` for dashboards; drill into `workers[]` for per-process detail.
+## Single mode
 
-## `workers[]`
+Flat Puma pool counters at root (`Puma::Server::STAT_METHODS`, zero-filled then merged with `@server.stats`) plus:
 
-| Field | Description |
-|-------|-------------|
-| `index` | Worker index (0 in single mode) |
-| `pid` | OS process id |
-| `synced_at` | UTC ISO 8601 time of the last cluster ping that stored enhanced stats; `null` until the first ping. In single mode, equals `meta.collected_at` |
-| `puma` | Thread-pool counters from `Puma::Server::STAT_METHODS` |
-| `requests` | In-flight registry snapshot for this worker |
+| Key | Description |
+|-----|-------------|
+| `collected_at` | Response assembly time (`iso8601(6)`) |
+| `backlog`, `running`, … | `Puma::Server::STAT_METHODS`; zero-filled when `@server` is absent (`Single#enhanced_stats` before boot) |
+| `requests_in_flight` | `requests.size` |
+| `requests` | In-flight request array |
+| `versions.puma-enhanced-stats` | Gem version (required); native `puma` / `ruby` keys appear only when present on `@server.stats` |
 
-### `workers[].puma`
+`started_at` is included only when present on `@server.stats` (not part of native `Puma::Server#stats`).
 
-Mirrors Puma native stats: `backlog`, `running`, `pool_capacity`, `busy_threads`, `backlog_max`, `max_threads`, `requests_count`, `reactor_max`.
+No `worker_status`, no `last_enhanced_checkin`, no `last_enhanced_status`.
 
-In **cluster** mode, values come from `@server.stats` merged into the enhanced pipe payload (same snapshot as in-flight requests). In **single** mode, they are read live from `@server.stats`. `GET /stats` and `pumactl stats` remain unchanged.
-
-### `workers[].requests`
-
-#### `requests.meta`
-
-| Field | Description |
-|-------|-------------|
-| `count` | Current in-flight entries |
-| `request_limit` | Configured registry cap |
-| `limit_policy` | `"keep_longest"` or `"reject_new"` |
-| `truncated` | Whether any field was truncated since the **previous** snapshot/ping |
-| `dropped_count` | Registrations rejected or evicted since the **previous** snapshot/ping |
-
-**Delta semantics:** `dropped_count` and `truncated` are interval counters, not lifetime totals. They reset after each worker ping (cluster) or each `CurrentRequests#snapshot` read (single).
-
-#### `requests.items[]`
-
-Each in-flight request entry:
+## `requests[]` entry shape
 
 | Field | Required | Description |
 |-------|----------|-------------|
 | `id` | yes | `action_dispatch.request_id` |
-| `started_at` | yes | UTC ISO 8601 time at registration |
-| `method`, `path_info`, `remote_ip` | no* | Default built-in request fields (present with zero-config) |
-| `session` | yes | Nested hash of configured session fields; always `{}` when none are configured |
-| *(custom)* | no | Additional top-level keys from `request` extractors |
+| `started_at` | yes | From `env["puma.enhanced_stats.started_at"]` (middleware stamp, `iso8601(6)`) |
+| `method`, `path_info`, `remote_ip` | no* | Default request fields |
+| `session` | yes | Configured session fields; `{}` when none configured |
 
-\*Default request fields are always populated unless you replace them in the DSL.
+\*Defaults are populated unless replaced in the DSL.
 
-Custom field names are allowed (`additionalProperties: true` on request items). Values are strings truncated to `max_field_length` with optional `truncate_suffix`.
+Field values longer than `max_field_length` are truncated with suffix `"…"` (not configurable). No truncation flag is exposed.
 
-There is **no** `elapsed_ms` in v1; compute duration client-side from `started_at` and `meta.collected_at` if needed.
+## Wire format (cluster pipe)
 
-## Single vs cluster freshness
-
-```mermaid
-sequenceDiagram
-  participant Client
-  participant Master
-  participant WH as WorkerHandle
-  participant Worker
-
-  Note over Client,Worker: Single mode
-  Client->>Master: GET /enhanced-stats
-  Master->>Master: CurrentRequests.snapshot live
-
-  Note over Client,Worker: Cluster mode
-  Worker->>Master: write @enhanced_write_io every worker_check_interval
-  Master->>WH: enhanced_ping! → last_enhanced_stats
-  Client->>Master: GET /enhanced-stats
-  Master->>WH: last_enhanced_stats (puma keys + requests)
-```
-
-In cluster mode, in-flight items may be up to one `worker_check_interval` stale relative to the worker process. Compare `synced_at` with `meta.collected_at` and watch `workers_stale`.
+Workers send: `{ index, pid, stats, requests: [...] }` via `Snapshot.server`. The sender thread writes only when `@server` is present. The master stores the row on `WorkerHandle#enhanced_ping!`.
 
 ## Querying
 
@@ -124,13 +74,4 @@ curl "http://127.0.0.1:9293/enhanced-stats?token=SECRET"
 bundle exec pumactl -S tmp/puma.state enhanced-stats
 ```
 
-Invalid or missing `token` returns **403 Forbidden** (same as other control app routes).
-
-## Schema changes
-
-Any contract change requires:
-
-1. Update [schema/enhanced-stats-v1.json](../schema/enhanced-stats-v1.json)
-2. Update [spec/fixtures/enhanced-stats-v1.sample.json](../spec/fixtures/enhanced-stats-v1.sample.json)
-3. Extend [spec/contract/enhanced_stats_v1_spec.rb](../spec/contract/enhanced_stats_v1_spec.rb)
-4. Document here and in [CHANGELOG](../CHANGELOG.md)
+Invalid or missing `token` returns **403 Forbidden**.

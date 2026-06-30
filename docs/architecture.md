@@ -6,16 +6,15 @@ How **puma-enhanced-stats** integrates with Puma and Rails without modifying nat
 
 | Component | Role |
 |-----------|------|
-| `Railtie` | Inserts `CurrentRequestsMiddleware` innermost on the Rails stack |
-| `CurrentRequestsMiddleware` | `register` on entry, `unregister` in `ensure` |
-| `CurrentRequests` | Thread-safe in-flight registry (Singleton per worker) |
-| `Configuration` / `DSL` | Limits, policies, field extractors from `puma.rb` |
-| `Launcher` | `enhanced_stats` → `@runner.enhanced_stats` (like `stats`) |
-| `Snapshot` | Builds JSON v1 (`schema_version`, `meta`, `summary`, `workers`) |
-| `Cluster` | Pipe IO, reader thread → `enhanced_ping!` |
-| `WorkerHandle` | `@last_enhanced_stats` via `enhanced_ping!` (mirrors `@last_status` / `ping!`) |
-| `Worker` | `@enhanced_write_io`; sender thread in each child |
-| `Single` | Single mode: live registry + `@server.stats`, no pipe |
+| `Railtie` | Inserts `Middleware` innermost on the Rails stack |
+| `Middleware` | Stores live Rack `env` in thread-local storage for the request duration |
+| `Configuration` / `DSL` | Field extractors and truncation settings from `puma.rb` (`server.options[:enhanced_stats]`) |
+| `Snapshot` | Builds Puma-aligned JSON via `server` / `single` / `cluster(workers:, phase:, started_at:)` |
+| `WorkerHandle` | `@last_enhanced_checkin` + `@last_enhanced_status` via `enhanced_ping!` |
+| `Launcher` | Delegates `enhanced_stats` → `@runner.enhanced_stats` |
+| `Cluster` | `@enhanced_read_io` + reader thread; `@options[:enhanced_write_io]` for workers → `enhanced_ping!`; `Snapshot.cluster` aggregates worker `Snapshot.server` rows |
+| `Worker` | Sender thread writes `Snapshot.server` when `@server` is present |
+| `Single` | `Snapshot.single(server:)` when `@server` is present; zero-filled counters otherwise |
 | `Status` | `GET /enhanced-stats` → `@launcher.enhanced_stats` |
 | `ControlCLI` | Registers `pumactl enhanced-stats` |
 
@@ -25,38 +24,41 @@ Entry point: [lib/puma/enhanced/stats.rb](../lib/puma/enhanced/stats.rb) prepend
 
 ```mermaid
 flowchart LR
-  HTTP[HTTP request] --> MW[CurrentRequestsMiddleware]
-  MW --> Reg[CurrentRequests.register]
-  Reg --> App[Rails app]
-  App --> Unreg[CurrentRequests.unregister]
-  Unreg --> HTTP
+  HTTP[HTTP request] --> MW[Middleware]
+  MW --> SetEnv["Thread.current KEY = env"]
+  SetEnv --> App[Rails app]
+  App --> ClearEnv["Thread.current KEY = nil"]
+  ClearEnv --> HTTP
 ```
 
-Field extraction for registry entries runs **outside** the registry mutex where possible; capacity checks run again before insert.
+The middleware stamps `env["puma.enhanced_stats.started_at"]` with `Time.now.iso8601(6)` on entry. No field extractors run on the request hot path.
 
-Unregister runs when the Rails stack returns from `@app.call`, not when a streaming body completes. See [Operations — Limitations](operations.md#limitations).
+Clear runs when the Rails stack returns from `@app.call`, not when a streaming body completes. See [Operations — Limitations](operations.md#limitations).
 
 ## Cluster sync path
 
 ```mermaid
 sequenceDiagram
   participant W as Worker
-  participant CR as CurrentRequests
+  participant Snap as Snapshot
   participant CL as Cluster
   participant WH as WorkerHandle
   participant L as Launcher
   participant C as Client
 
   Note over CL: Cluster#run opens pipe (read/write IO)
-  W->>CL: sender writes registry + @server.stats via @enhanced_write_io
-  W->>CR: CurrentRequests.snapshot
-  CL->>WH: enhanced_ping! → last_enhanced_stats
+  W->>Snap: Snapshot.server (when @server present)
+  W->>CL: @options enhanced_write_io row JSON
+  CL->>WH: enhanced_ping! → last_enhanced_status + last_enhanced_checkin
 
   Note over C: On GET /enhanced-stats
   C->>L: enhanced_stats
   L->>CL: runner.enhanced_stats
-  CL->>WH: last_enhanced_stats per worker
+  CL->>Snap: Snapshot.cluster
+  Snap->>WH: last_enhanced_status per worker → worker_status row
 ```
+
+The wire format is a **flat worker row** (`index`, `pid`, `stats`, `requests: []`). HTTP responses aggregate worker `Snapshot.server` rows via `last_enhanced_*`. See [ADR 0008](adr/0008-enhanced-stats-puma-aligned-json.md).
 
 Enhanced stats travel on a **dedicated pipe**. The native `PIPE_PING` channel and `Puma::Cluster#stats` are untouched, so `pumactl stats` and `GET /stats` stay Puma-native.
 
@@ -66,31 +68,36 @@ Enhanced stats travel on a **dedicated pipe**. The native `PIPE_PING` channel an
 flowchart TD
   Client[GET /enhanced-stats] --> Status
   Status --> L[launcher.enhanced_stats]
-  L --> JSON[JSON v1 response]
+  L --> Single[Single#enhanced_stats]
+  Single --> Snap[Snapshot.single]
+  Snap --> Server[Snapshot.server]
+  Server --> JSON[Puma /stats + extensions]
 ```
 
-No worker cache. `synced_at` on the single worker row reflects the live snapshot time.
+Single mode merges live `@server.stats` with `collected_at`, `requests`, and `requests_in_flight` at root when the server is running. Before `start_server`, `Single#enhanced_stats` returns zero-filled pool counters. No `worker_status` wrapper.
 
 ## Separation from native stats
 
 | Endpoint / command | Content |
 |--------------------|---------|
 | `GET /stats`, `pumactl stats` | Puma-native stats only |
-| `GET /enhanced-stats`, `pumactl enhanced-stats` | JSON v1 with in-flight requests |
+| `GET /enhanced-stats`, `pumactl enhanced-stats` | Puma `/stats` shape + flat gem extensions |
 | `Puma.stats` / `Puma.stats_hash` | Native stats in-process (master or single) |
-| `Puma.enhanced_stats` / `Puma.enhanced_stats_hash` | Enhanced JSON v1 in-process via o mesmo `stats_object` (`@runner`) |
+| `Puma.enhanced_stats` / `Puma.enhanced_stats_hash` | Enhanced payload in-process via `@runner` |
 
 Integration tests assert `/stats` does not include `enhanced_stats`.
 
-## Registry internals
+## In-flight tracking internals
 
-- Storage: `Hash` keyed by `action_dispatch.request_id` (insertion order preserved)
-- Policies: `:keep_longest` evicts newest key when full; `:reject_new` drops new registrations
-- `CurrentRequests#snapshot`: returns `items`, interval `dropped_count` / `truncated`
+- Storage: `Middleware` holds the live Rack `env` per busy worker thread (`Thread.current[KEY]`)
+- Build: `Snapshot#server_row` reads thread-local envs and returns in-flight `requests` at read time (`Snapshot.server` requires a `Puma::Server` instance)
+- Requests in the Puma `@todo` queue are not tracked until a thread executes the middleware
+
+See [ADR 0007](adr/0007-lazy-snapshot-from-env.md).
 
 ## Failure handling
 
-Registry and middleware operations rescue `StandardError` and fail open — stats never break HTTP responses. Misconfigured extractors fail silently; validate DSL in staging.
+Middleware and snapshot building fail open — stats never break HTTP responses. Extractor errors during request snapshotting yield an empty `requests` array for that read.
 
 Pipe parse/store errors are discarded (fail-open). Malformed wire lines never affect the cluster or native ping loop.
 
@@ -100,23 +107,22 @@ The codebase is intentionally monolithic. Likely future additions (not implement
 
 - Length-prefix framing for payloads larger than the pipe buffer (~64 KB)
 - Optional terminal CLI (removed in 0.4.0)
-- Additional limit policies
 - Body-close lifecycle for streaming accuracy
 
 ## Source layout
 
 ```
 lib/puma/enhanced/stats/
-  configuration.rb      # limits, fields, defaults
+  configuration.rb      # fields, truncation defaults
   dsl.rb                # enhanced_stats block
-  current_requests.rb   # registry singleton
-  current_requests_middleware.rb
-  snapshot.rb            # JSON v1 assembly (Snapshot)
+  middleware.rb
+  snapshot.rb            # Snapshot.server / .single / .cluster
   cluster.rb             # pipe IO, dispatch enhanced_ping!
-  worker_handle.rb       # last_enhanced_stats, enhanced_ping!
-  worker.rb              # pipe writer (sender thread)
+  worker_handle.rb       # last_enhanced_checkin, last_enhanced_status, enhanced_ping!
+  worker.rb              # pipe writer (sender thread; skips until @server)
+  single.rb              # Single#enhanced_stats, empty payload before @server
   status.rb             # GET /enhanced-stats
-  launcher.rb           # enhanced_stats payload (like stats)
+  launcher.rb           # enhanced_stats delegation
   railtie.rb
   field.rb
   version.rb

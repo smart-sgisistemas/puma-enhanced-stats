@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require "json"
-
 module Puma
   module Enhanced
     module Stats
@@ -10,7 +8,7 @@ module Puma
           if env["PATH_INFO"][/\/([^\/]+)$/, 1] == "enhanced-stats"
             return rack_response 403, "Invalid auth token", "text/plain" unless authenticate env
 
-            return rack_response 200, JSON.generate(@launcher.enhanced_stats)
+            return rack_response 200, Puma::JSONSerialization.generate(@launcher.enhanced_stats)
           end
 
           super

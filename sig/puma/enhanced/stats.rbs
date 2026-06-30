@@ -6,49 +6,55 @@ module Puma
       class Error < StandardError
       end
 
-      interface _RegistrySnapshot
-        def items: () -> Array[Hash[Symbol, untyped]]
-        def dropped_count: () -> Integer
-        def truncated: () -> bool
-      end
-
       interface _WorkerRow
         def index: () -> Integer
         def pid: () -> Integer
-        def synced_at: () -> String?
-        def puma: () -> Hash[Symbol, untyped]
-        def requests: () -> Hash[Symbol, untyped]
+        def phase: () -> Integer
+        def booted: () -> bool
+        def started_at: () -> String
+        def last_enhanced_checkin: () -> String?
+        def last_enhanced_status: () -> Hash[Symbol, untyped]
+        def requests: () -> Array[Hash[Symbol, untyped]]
       end
 
-      interface _EnhancedStatsPayload
-        def schema_version: () -> Integer
-        def meta: () -> Hash[Symbol, untyped]
-        def summary: () -> Hash[Symbol, untyped]
-        def workers: () -> Array[_WorkerRow]
+      interface _ClusterPayload
+        def started_at: () -> String
+        def workers: () -> Integer
+        def phase: () -> Integer
+        def booted_workers: () -> Integer
+        def old_workers: () -> Integer
+        def collected_at: () -> String
+        def workers_total: () -> Integer
+        def workers_reporting: () -> Integer
+        def workers_stale: () -> Integer
+        def requests_in_flight: () -> Integer
+        def backlog_total: () -> Integer
+        def busy_threads_total: () -> Integer
+        def max_threads_total: () -> Integer
+        def pool_capacity_total: () -> Integer
+        def worker_status: () -> Array[_WorkerRow]
+        def versions: () -> Hash[Symbol | String, untyped]
       end
 
-      type _EnhancedWorkerRows = Array[Hash[Symbol, untyped]]
+      interface _SinglePayload
+        def started_at: () -> String
+        def collected_at: () -> String
+        def requests_in_flight: () -> Integer
+        def requests: () -> Array[Hash[Symbol, untyped]]
+        def versions: () -> Hash[Symbol | String, untyped]
+      end
+
+      type _EnhancedStatsPayload = _ClusterPayload | _SinglePayload
 
       class Configuration
-        LIMIT_POLICIES: Array[Symbol]
-
-        attr_reader request_limit: Integer
-        attr_reader limit_policy: Symbol
         attr_reader max_field_length: Integer
-        attr_reader truncate_suffix: String
-        attr_reader fields: { request: Hash[Symbol, Field], session: Hash[Symbol, Field] }
 
         def self.default: () -> Configuration
 
         def initialize: () -> void
         def fields_for: (Symbol namespace) -> Array[Field]
         def register_fields: (Symbol | String namespace, *Symbol | String name) ?{ (Hash[untyped, untyped] source) -> untyped } -> void
-        def request_limit=: (Integer | String value) -> Integer
-        def limit_policy=: (Symbol | String value) -> Symbol
         def max_field_length=: (Integer | String value) -> Integer
-        def truncate_suffix=: (String? value) -> String
-        def keep_longest?: () -> bool
-        def reject_new?: () -> bool
       end
 
       class Field
@@ -59,66 +65,53 @@ module Puma
         def extract: (Hash[untyped, untyped] source) -> untyped
       end
 
-      class CurrentRequests
-        include Singleton
+      class Middleware
+        KEY: Symbol
+        STARTED_AT_KEY: String
 
-        def self.reset!: () -> void
-        def self.register: (Hash[untyped, untyped] env) -> void
-        def self.unregister: (Hash[untyped, untyped] env) -> void
-        def self.config=: (Configuration value) -> Configuration
-        def self.config: () -> Configuration
-        def self.snapshot: () -> _RegistrySnapshot
-
-        def config=: (Configuration value) -> Configuration
-        def config: () -> Configuration
-        def register: (Hash[untyped, untyped] env) -> void
-        def unregister: (Hash[untyped, untyped] env) -> void
-        def reset!: () -> void
-        def snapshot: () -> _RegistrySnapshot
-      end
-
-      class CurrentRequestsMiddleware
         def initialize: (#call app) -> void
         def call: (Hash[untyped, untyped] env) -> Array[untyped]
       end
 
       class Snapshot
-        SCHEMA_VERSION: Integer
+        def self.server: (server: untyped, ?index: Integer) -> Hash[Symbol, untyped]
+        def self.single: (server: untyped) -> _SinglePayload
+        def self.cluster: (workers: Array[untyped], phase: Integer, started_at: Time?) -> _ClusterPayload
 
-        def initialize: (worker_check_interval: Integer, ?server: untyped, ?workers: Array[untyped]) -> void
-        def to_h: () -> _EnhancedStatsPayload
+        def initialize: (?server: untyped, ?workers: Array[untyped], ?phase: Integer?, ?started_at: Time?, ?index: Integer) -> void
+        def server_row: () -> Hash[Symbol, untyped]
+        def single_payload: () -> _SinglePayload
+        def cluster_payload: () -> _ClusterPayload
+
+        private
       end
 
       module WorkerHandle
-        EMPTY_ENHANCED_STATS: Hash[Symbol, untyped]
-
-        attr_reader last_enhanced_stats: Hash[Symbol, untyped]
+        attr_reader last_enhanced_checkin: Time?
+        attr_reader last_enhanced_status: Hash[Symbol, untyped]
 
         def initialize: (*untyped) -> void
-        def enhanced_ping!: (Hash[Symbol, untyped]? payload) -> void
+        def enhanced_ping!: (Hash[Symbol, untyped] payload) -> void
       end
 
       module Cluster
-        attr_reader enhanced_read_io: IO?
-        attr_reader enhanced_write_io: IO?
-
         def run: () -> untyped
         def worker: (*untyped) -> untyped
-        def enhanced_stats: () -> _EnhancedStatsPayload
+        def enhanced_stats: () -> _ClusterPayload
       end
 
       module Worker
-        def initialize: (index: Integer, master: untyped, launcher: untyped, pipes: Hash[Symbol, untyped], ?app: untyped) -> void
         def run: () -> untyped
       end
 
       module Single
-        def enhanced_stats: () -> _EnhancedStatsPayload
+        def enhanced_stats: () -> _SinglePayload
+
+        private
+        def empty_enhanced_stats: () -> _SinglePayload
       end
 
       module Launcher
-        def runner: () -> untyped
-        def run: () -> untyped
         def enhanced_stats: () -> _EnhancedStatsPayload
       end
 
@@ -131,10 +124,7 @@ module Puma
 
         class Builder
           def initialize: (Configuration configuration) -> void
-          def request_limit: (Integer | String value) -> Integer
-          def limit_policy: (Symbol | String value) -> Symbol
           def max_field_length: (Integer | String value) -> Integer
-          def truncate_suffix: (String? value) -> String
           def request: (*Symbol | String name) ?{ (Hash[untyped, untyped] env) -> untyped } -> void
           def session: (*Symbol | String name) ?{ (Hash[untyped, untyped] rack_session) -> untyped } -> void
         end

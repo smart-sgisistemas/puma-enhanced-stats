@@ -6,11 +6,7 @@ module Puma
   module Enhanced
     module Stats
       class Configuration
-        LIMIT_POLICIES = %i[keep_longest reject_new].freeze
-
-        DEFAULT_TRUNCATE_SUFFIX = "…"
-
-        attr_reader :request_limit, :limit_policy, :max_field_length, :truncate_suffix, :fields
+        attr_reader :max_field_length
 
         class << self
           def default = @default ||= new
@@ -20,31 +16,14 @@ module Puma
           @fields = {
             request: {
               id: Field.new(name: "id", block: ->(env) { env["action_dispatch.request_id"] }),
-              started_at: Field.new(name: "started_at", block: ->(_env) { Time.now.utc.iso8601(6) }),
+              started_at: Field.new(name: "started_at", block: ->(env) { env["puma.enhanced_stats.started_at"] }),
               method: Field.new(name: "method", block: ->(env) { env["REQUEST_METHOD"] }),
               remote_ip: Field.new(name: "remote_ip", block: ->(env) { env["action_dispatch.remote_ip"] || env["REMOTE_ADDR"] }),
               path_info: Field.new(name: "path_info", block: ->(env) { (env["SCRIPT_NAME"] || "") + env["PATH_INFO"] })
             },
             session: {}
           }
-          self.request_limit = 100
-          self.limit_policy = :keep_longest
           self.max_field_length = 256
-          self.truncate_suffix = DEFAULT_TRUNCATE_SUFFIX
-        end
-
-        def request_limit= value
-          request_limit = Integer value
-          raise Error, "request_limit must be > 0" unless request_limit.positive?
-
-          @request_limit = request_limit
-        end
-
-        def limit_policy= value
-          policy = value.to_sym
-          raise Error, "invalid limit_policy #{value} (allowed: #{LIMIT_POLICIES.join(', ')})" unless LIMIT_POLICIES.include? policy
-
-          @limit_policy = policy
         end
 
         def max_field_length= value
@@ -53,14 +32,6 @@ module Puma
 
           @max_field_length = max_field_length
         end
-
-        def truncate_suffix= value
-          @truncate_suffix = value.to_s
-        end
-
-        def keep_longest? = @limit_policy == :keep_longest
-
-        def reject_new? = @limit_policy == :reject_new
 
         def fields_for(namespace) = @fields.fetch(namespace).values
 

@@ -9,13 +9,7 @@ module Puma
             @configuration = configuration
           end
 
-          def request_limit(value) = @configuration.request_limit = value
-
-          def limit_policy(value) = @configuration.limit_policy = value
-
           def max_field_length(value) = @configuration.max_field_length = value
-
-          def truncate_suffix(value) = @configuration.truncate_suffix = value
 
           def request(*names, &block)
             @configuration.register_fields :request, *names, &block

@@ -24,7 +24,7 @@ Activation is automatic via Bundler. Defaults work with only a Gemfile entry.
 
 ```ruby
 # Gemfile
-gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v0.5.1"
+gem "puma-enhanced-stats", github: "smart-sgisistemas/puma-enhanced-stats", tag: "v1.0.0"
 ```
 
 ```bash
@@ -55,15 +55,13 @@ Optional block in `config/puma.rb`:
 ```ruby
 enhanced_stats do
   session :user_id
-  request_limit 100
-  limit_policy :keep_longest
   max_field_length 256
 end
 ```
 
-Zero-config defaults: request fields `id`, `started_at`, `remote_ip`, `method`, `path_info`; `session` always `{}` until you add session extractors; `request_limit` 100; `:keep_longest` policy.
+Zero-config defaults: request fields `id`, `started_at`, `remote_ip`, `method`, `path_info`; `session` always `{}` until you add session extractors.
 
-Full DSL, limit policies, and cluster tuning: [docs/operations.md](docs/operations.md).
+Full DSL and cluster tuning: [docs/operations.md](docs/operations.md).
 
 Cluster mode — set ping interval with Puma's `worker_check_interval`:
 
@@ -74,17 +72,14 @@ worker_check_interval 5
 
 ## JSON response
 
-The response follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json) (`schema_version: 1`), assembled by `Snapshot`.
+The response follows [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json): **Puma `/stats` + flat extensions** (see [ADR 0008](docs/adr/0008-enhanced-stats-puma-aligned-json.md)).
 
-| Section | Purpose |
-|---------|---------|
-| `meta` | Timestamp, versions, `single` / `cluster` mode |
-| `summary` | Cluster-wide workers, in-flight counts, pool totals |
-| `workers[]` | Per-worker Puma stats and in-flight `items` |
+| Mode | Extensions |
+|------|------------|
+| **Cluster** | Flat aggregates above `worker_status`; per worker: `last_enhanced_checkin`, `last_enhanced_status`, `requests[]` |
+| **Single** | `collected_at`, `requests_in_flight`, `requests[]`, `versions.puma-enhanced-stats` |
 
-Each in-flight item includes required `id`, `started_at`, and `session` (empty object when no session fields are configured).
-
-Field reference and delta semantics: [docs/json-contract.md](docs/json-contract.md).  
+Field reference: [docs/json-contract.md](docs/json-contract.md).  
 Sample: [spec/fixtures/enhanced-stats-v1.sample.json](spec/fixtures/enhanced-stats-v1.sample.json).
 
 Native Puma endpoints are unchanged — enhanced data appears **only** on `/enhanced-stats` and `pumactl enhanced-stats`.
@@ -92,7 +87,7 @@ Native Puma endpoints are unchanged — enhanced data appears **only** on `/enha
 ## Limitations
 
 - **Streaming bodies** — requests leave the registry when the Rails stack returns, not when the body finishes sending ([architecture](docs/architecture.md)).
-- **Cluster freshness** — in-flight data and `workers[].puma` reflect the last enhanced pipe write (up to `worker_check_interval` stale).
+- **Cluster freshness** — in-flight data reflects the last enhanced pipe write (up to `worker_check_interval` stale). Compare `last_enhanced_checkin` with `collected_at`.
 - **Rails required** — uses Rails middleware and `action_dispatch.request_id`.
 
 ## Terminal CLI

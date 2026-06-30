@@ -32,7 +32,7 @@ RSpec.describe "pumactl enhanced-stats", :integration do
     expect(success).to be(true), output
 
     payload = JSON.parse(output[output.index("{")..])
-    expect(payload["schema_version"]).to eq(1)
+    expect(payload).not_to have_key("schema_version")
     validate_schema(payload)
   end
 end

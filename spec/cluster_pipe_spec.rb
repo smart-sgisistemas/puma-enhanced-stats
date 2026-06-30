@@ -4,14 +4,14 @@ require "json"
 require "puma/cluster"
 
 RSpec.describe "enhanced stats pipe" do
-  let(:registry) do
-    {
+  let(:wire_payload) do
+    wire_row(
+      index: 0,
+      pid: 42_001,
       items: [{ id: "req-1" }],
-      dropped_count: 2,
-      truncated: true,
       backlog: 1,
       running: 1
-    }
+    )
   end
 
   let(:options) { Puma::Launcher.new(Puma::Configuration.new).config.options }
@@ -26,7 +26,7 @@ RSpec.describe "enhanced stats pipe" do
 
       def initialize
         @options = { worker_check_interval: 0.05 }
-        @enhanced_write_io = nil
+        @index = 0
       end
 
       def run
@@ -35,32 +35,31 @@ RSpec.describe "enhanced stats pipe" do
     end.new.tap { |instance| instance.singleton_class.prepend Puma::Enhanced::Stats::Worker }
   end
 
-  def wire_line(pid, snapshot)
-    "#{pid}\t#{JSON.generate(snapshot)}\n"
+  def parse_wire_line(line)
+    JSON.parse line.sub(/^\d+\s*/, "").chomp, symbolize_names: true
   end
 
   describe "wire format" do
     it "round-trips wire payload and enhanced_ping!" do
       worker = worker_handle(index: 0, pid: 42_001)
-      line = wire_line(42_001, registry)
-      payload = JSON.parse line.sub(/^\d+\s*/, "").chomp, symbolize_names: true
+      payload = parse_wire_line(wire_line(42_001, wire_payload))
 
       worker.enhanced_ping! payload
 
-      expect(worker.last_enhanced_stats[:items].first[:id]).to eq("req-1")
-      expect(worker.last_enhanced_stats[:backlog]).to eq(1)
-      expect(worker.last_enhanced_stats[:running]).to eq(1)
+      expect(worker.last_enhanced_status[:requests].first[:id]).to eq("req-1")
+      expect(worker.last_enhanced_status[:stats][:backlog]).to eq(1)
+      expect(worker.last_enhanced_status[:stats][:running]).to eq(1)
     end
 
     it "does not ping when pid is unknown" do
       workers = [worker_handle(index: 0, pid: 42_001)]
-      line = wire_line(1, registry)
+      line = wire_line(1, wire_payload)
       parsed_pid = line[/^\d+/].to_i
-      payload = JSON.parse line.sub(/^\d+\s*/, "").chomp, symbolize_names: true
+      payload = parse_wire_line(line)
 
       workers.find { |worker| worker.pid == parsed_pid }&.enhanced_ping! payload
 
-      expect(workers.first.last_enhanced_stats[:items]).to be_empty
+      expect(workers.first.last_enhanced_status[:requests]).to be_empty
     end
   end
 
@@ -69,24 +68,31 @@ RSpec.describe "enhanced stats pipe" do
       it "includes @server.stats in the wire payload" do
         read, write = IO.pipe
         worker = worker_instance
-        worker.instance_variable_set(:@enhanced_write_io, write)
-        worker.instance_variable_set(:@server, Struct.new(:stats).new({ backlog: 3, running: 2 }))
+        worker.options[:enhanced_write_io] = write
+        worker.instance_variable_set(
+          :@server,
+          Struct.new(:stats, :options).new(
+            { backlog: 3, running: 2 },
+            { enhanced_stats: Puma::Enhanced::Stats::Configuration.default }
+          )
+        )
         worker.run
-        Puma::Enhanced::Stats::CurrentRequests.register(
+        with_inflight_env(
           "REQUEST_METHOD" => "GET",
           "PATH_INFO" => "/",
           "QUERY_STRING" => "",
           "REMOTE_ADDR" => "127.0.0.1",
-          "action_dispatch.request_id" => "wire-stats"
-        )
-        sleep 0.15
-        read.gets
-        line = read.gets
-        payload = JSON.parse line.sub(/^\d+\s*/, "").chomp, symbolize_names: true
+          "action_dispatch.request_id" => "wire-stats",
+          "puma.enhanced_stats.started_at" => Time.now.utc.iso8601(6)
+        ) do
+          sleep 0.15
+          read.gets
+          payload = parse_wire_line(read.gets)
 
-        expect(payload[:backlog]).to eq(3)
-        expect(payload[:running]).to eq(2)
-        expect(payload[:items].first[:id]).to eq("wire-stats")
+          expect(payload[:stats][:backlog]).to eq(3)
+          expect(payload[:stats][:running]).to eq(2)
+          expect(payload[:requests].first[:id]).to eq("wire-stats")
+        end
       ensure
         read.close
         write.close
@@ -98,7 +104,14 @@ RSpec.describe "enhanced stats pipe" do
       it "writes registry snapshots to the pipe" do
         read, write = IO.pipe
         worker = worker_instance
-        worker.instance_variable_set(:@enhanced_write_io, write)
+        worker.options[:enhanced_write_io] = write
+        worker.instance_variable_set(
+          :@server,
+          Struct.new(:stats, :options).new(
+            default_puma_stats,
+            { enhanced_stats: Puma::Enhanced::Stats::Configuration.default }
+          )
+        )
 
         worker.run
         sleep 0.05

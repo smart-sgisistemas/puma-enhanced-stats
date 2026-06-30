@@ -30,6 +30,14 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
+  config.after do
+    Thread.list.each do |thread|
+      thread[Puma::Enhanced::Stats::Middleware::KEY] = nil
+    rescue StandardError
+      nil
+    end
+  end
+
   config.filter_run_excluding :integration if ENV["SKIP_INTEGRATION"]
 
   config.after(:each, :integration) do

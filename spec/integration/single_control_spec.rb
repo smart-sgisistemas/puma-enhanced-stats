@@ -12,7 +12,7 @@ RSpec.describe "single mode control app", :integration do
     expect(schema.validate(payload).to_a).to be_empty
   end
   around do |example|
-    server = IntegrationServer.start_puma_server
+    server = IntegrationServer.start_puma_server(slow_sleep: 20)
     @server = server
     example.run
   ensure
@@ -21,18 +21,23 @@ RSpec.describe "single mode control app", :integration do
 
   it "returns in-flight requests from GET /enhanced-stats" do
     IntegrationServer.trigger_slow_request(@server[:app_port])
-    sleep 0.5
 
-    payload = IntegrationServer.fetch_enhanced_stats(
-      control_port: @server[:control_port],
-      token: @server[:token]
-    )
+    payload = nil
+    20.times do
+      payload = IntegrationServer.fetch_enhanced_stats(
+        control_port: @server[:control_port],
+        token: @server[:token]
+      )
+      break if payload["requests_in_flight"].to_i >= 1
 
-    expect(payload["schema_version"]).to eq(1)
-    expect(payload["meta"]["mode"]).to eq("single")
-    expect(payload["workers"].size).to eq(1)
+      sleep 0.25
+    end
 
-    items = payload["workers"].first["requests"]["items"]
+    expect(payload).not_to have_key("schema_version")
+    expect(payload).to include("collected_at", "requests", "requests_in_flight", "versions")
+    expect(payload).not_to have_key("worker_status")
+
+    items = payload["requests"]
     expect(items).to include(hash_including("method" => "GET", "path_info" => match(%r{/slow\z})))
 
     validate_schema(payload)

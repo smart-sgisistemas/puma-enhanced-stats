@@ -1,57 +1,58 @@
 {
-  "schema_version": 1,
-  "meta": {
-    "collected_at": "2026-06-12T10:00:00Z",
-    "gem_version": "0.5.1",
-    "puma_version": "8.0.2",
-    "ruby_version": "3.2.2",
-    "mode": "cluster",
-    "worker_check_interval_seconds": 5
-  },
-  "summary": {
-    "workers_total": 1,
-    "workers_reporting": 1,
-    "workers_stale": 0,
-    "requests_in_flight": 1,
-    "requests_dropped_total": 0,
-    "requests_truncated": false,
-    "backlog_total": 0,
-    "busy_threads_total": 1,
-    "max_threads_total": 5,
-    "pool_capacity_total": 5
-  },
-  "workers": [{
-    "index": 0,
-    "pid": 12345,
-    "synced_at": "2026-06-12T10:00:05Z",
-    "puma": {
-      "backlog": 0,
-      "running": 1,
-      "pool_capacity": 5,
-      "busy_threads": 1,
-      "backlog_max": 0,
-      "max_threads": 5,
-      "requests_count": 10,
-      "reactor_max": 0
-    },
-    "requests": {
-      "meta": {
-        "count": 1,
-        "request_limit": 100,
-        "limit_policy": "keep_longest",
-        "truncated": false,
-        "dropped_count": 0
+  "started_at": "2026-06-29T21:47:05Z",
+  "workers": 1,
+  "phase": 0,
+  "booted_workers": 1,
+  "old_workers": 0,
+  "collected_at": "2026-06-29T21:47:50Z",
+  "workers_total": 1,
+  "workers_reporting": 1,
+  "workers_stale": 0,
+  "requests_in_flight": 1,
+  "backlog_total": 0,
+  "busy_threads_total": 1,
+  "max_threads_total": 5,
+  "pool_capacity_total": 5,
+  "worker_status": [
+    {
+      "index": 0,
+      "pid": 12345,
+      "phase": 3,
+      "booted": true,
+      "started_at": "2026-06-12T09:55:00Z",
+      "last_enhanced_checkin": "2026-06-12T10:00:05Z",
+      "last_enhanced_status": {
+        "backlog": 0,
+        "running": 1,
+        "pool_capacity": 5,
+        "busy_threads": 1,
+        "io_threads": 0,
+        "backlog_max": 0,
+        "max_threads": 5,
+        "requests_count": 10,
+        "reactor_max": 0
       },
-      "items": [{
-        "id": "abc",
-        "started_at": "2026-06-12T09:59:20Z",
-        "method": "GET",
-        "path_info": "/reports",
-        "remote_ip": "127.0.0.1",
-        "session": {
-          "user_id": "42"
+      "requests": [
+        {
+          "id": "abc",
+          "started_at": "2026-06-12T09:59:20Z",
+          "method": "GET",
+          "path_info": "/reports",
+          "remote_ip": "127.0.0.1",
+          "session": {
+            "user_id": "42"
+          }
         }
-      }]
+      ]
     }
-  }]
+  ],
+  "versions": {
+    "puma": "8.0.2",
+    "puma-enhanced-stats": "1.0.0",
+    "ruby": {
+      "engine": "ruby",
+      "version": "3.2.2",
+      "patchlevel": 53
+    }
+  }
 }

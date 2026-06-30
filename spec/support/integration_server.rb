@@ -151,8 +151,7 @@ module IntegrationServer
   end
 
   def reset_gem_state!
-    Puma::Enhanced::Stats::CurrentRequests.reset!
-    Puma::Enhanced::Stats::CurrentRequests.config =
-      Puma::Enhanced::Stats::Configuration.new
+    Thread.current[Puma::Enhanced::Stats::Middleware::KEY] = nil
+    RailsTestApp.slow_sleep = 3
   end
 end

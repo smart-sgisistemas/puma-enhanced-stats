@@ -2,17 +2,13 @@
 
 require "json"
 
-require_relative "snapshot"
-
 module Puma
   module Enhanced
     module Stats
       module Cluster
-        attr_reader :enhanced_read_io, :enhanced_write_io
-
         def run
-          @enhanced_read_io, @enhanced_write_io = Puma::Util.pipe
-          @enhanced_reader_thread = Thread.new do
+          @enhanced_read_io, @options[:enhanced_write_io] = Puma::Util.pipe
+          Thread.new do
             Puma.set_thread_name "enhanced stats rd"
             loop do
               line = @enhanced_read_io.gets
@@ -31,7 +27,6 @@ module Puma
           super
         ensure
           @enhanced_read_io&.close
-          @enhanced_reader_thread&.join 1
         end
 
         def worker *args
@@ -39,9 +34,7 @@ module Puma
           super
         end
 
-        def enhanced_stats
-          Snapshot.new(workers: @workers, worker_check_interval: @options[:worker_check_interval]).to_h
-        end
+        def enhanced_stats = Snapshot.cluster(workers: @workers, phase: @phase, started_at: @started_at)
       end
     end
   end

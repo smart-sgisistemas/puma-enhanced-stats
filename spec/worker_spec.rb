@@ -15,55 +15,15 @@ RSpec.describe Puma::Enhanced::Stats::Worker do
     end.new.tap { |instance| instance.singleton_class.prepend described_class }
   end
 
-  describe "#initialize" do
-    it "resolves enhanced_write_io from the launcher runner" do
-      pipe = instance_double(IO)
-      runner = instance_double(Puma::Cluster, enhanced_write_io: pipe)
-      launcher = instance_double(Puma::Launcher, runner: runner)
-      instance = Class.new { def initialize(**); end }.new
-
-      described_class.instance_method(:initialize).bind(instance).call(
-        index: 0,
-        master: 1,
-        launcher: launcher,
-        pipes: {}
-      )
-
-      expect(instance.instance_variable_get(:@enhanced_write_io)).to eq(pipe)
-    end
-
-    it "leaves enhanced_write_io nil when the runner is unavailable" do
-      launcher = instance_double(Puma::Launcher, runner: nil)
-      instance = Class.new { def initialize(**); end }.new
-
-      described_class.instance_method(:initialize).bind(instance).call(
-        index: 0,
-        master: 1,
-        launcher: launcher,
-        pipes: {}
-      )
-
-      expect(instance.instance_variable_get(:@enhanced_write_io)).to be_nil
-    end
-  end
-
   describe "#run" do
-    it "clears the registry and prepares the worker pipe" do
-      Puma::Enhanced::Stats::CurrentRequests.register(
-        "REQUEST_METHOD" => "GET",
-        "PATH_INFO" => "/",
-        "QUERY_STRING" => "",
-        "REMOTE_ADDR" => "127.0.0.1",
-        "action_dispatch.request_id" => "worker-boot-request"
-      )
-
+    it "starts the sender when enhanced_write_io is configured" do
       read, write = IO.pipe
-      worker.instance_variable_set(:@enhanced_write_io, write)
+      worker.options[:enhanced_write_io] = write
 
       expect(worker.run).to eq(:puma_run)
-      expect(Puma::Enhanced::Stats::CurrentRequests.snapshot[:items]).to be_empty
     ensure
       write.close
+      read.close
       Thread.list.each do |thread|
         thread.kill if thread.name == "enhanced stats"
       end
@@ -74,9 +34,27 @@ RSpec.describe Puma::Enhanced::Stats::Worker do
       expect(Thread.list.any? { |thread| thread.name == "enhanced stats" }).to be(false)
     end
 
+    it "does not write to the pipe until server is present" do
+      read, write = IO.pipe
+      worker.options[:worker_check_interval] = 0.05
+      worker.options[:enhanced_write_io] = write
+
+      worker.run
+      sleep 0.15
+
+      ready, = IO.select([read], nil, nil, 0)
+      expect(ready).to be_nil
+    ensure
+      write.close
+      read.close
+      Thread.list.each do |thread|
+        thread.kill if thread.name == "enhanced stats"
+      end
+    end
+
     it "stops the sender when the pipe breaks" do
       read, write = IO.pipe
-      worker.instance_variable_set(:@enhanced_write_io, write)
+      worker.options[:enhanced_write_io] = write
 
       worker.run
       write.close

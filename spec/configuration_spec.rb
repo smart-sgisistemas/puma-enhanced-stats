@@ -8,30 +8,8 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
     expect(names).to contain_exactly("id", "started_at", "method", "remote_ip", "path_info")
   end
 
-  it "validates request_limit and limit_policy in setters" do
-    expect { config.request_limit = 0 }.to raise_error Puma::Enhanced::Stats::Error, /request_limit/
-
-    expect { config.limit_policy = :invalid }.to raise_error(
-      Puma::Enhanced::Stats::Error,
-      "invalid limit_policy invalid (allowed: keep_longest, reject_new)"
-    )
-  end
-
   it "validates max_field_length in setters" do
     expect { config.max_field_length = 0 }.to raise_error Puma::Enhanced::Stats::Error, /max_field_length/
-  end
-
-  it "defaults truncate_suffix to the unicode ellipsis" do
-    expect(config.truncate_suffix).to eq(Puma::Enhanced::Stats::Configuration::DEFAULT_TRUNCATE_SUFFIX)
-    expect(config.truncate_suffix).to eq("…")
-  end
-
-  it "accepts nil and empty truncate_suffix" do
-    config.truncate_suffix = nil
-    expect(config.truncate_suffix).to eq("")
-
-    config.truncate_suffix = ""
-    expect(config.truncate_suffix).to eq("")
   end
 
   it "overrides default request fields with a later definition" do
@@ -45,19 +23,18 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
 
     expect(config.fields_for(:request).size).to eq 5
 
-    env = {
+    with_inflight_env(
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/",
       "QUERY_STRING" => "",
       "REMOTE_ADDR" => "1.1.1.1",
-      "action_dispatch.request_id" => "config-override-request"
-    }
-    current_requests = Puma::Enhanced::Stats::CurrentRequests
-    current_requests.reset!
-    current_requests.config = config
-    current_requests.register env
-
-    expect(current_requests.snapshot[:items].first[:method]).to eq "OVERRIDE"
+      "action_dispatch.request_id" => "config-override-request",
+      "puma.enhanced_stats.started_at" => Time.now.utc.iso8601(6)
+    ) do
+      expect(Puma::Enhanced::Stats::Snapshot.server(
+        server: server_double(enhanced_stats: config)
+      )[:requests].first[:method]).to eq "OVERRIDE"
+    end
   end
 
   it "reads request fields from env via [] when no block is given" do
@@ -65,19 +42,18 @@ RSpec.describe Puma::Enhanced::Stats::Configuration do
       request :PATH_INFO
     end
 
-    env = {
+    with_inflight_env(
       "REQUEST_METHOD" => "GET",
       "PATH_INFO" => "/reports",
       "QUERY_STRING" => "",
       "REMOTE_ADDR" => "1.1.1.1",
-      "action_dispatch.request_id" => "config-path-info-request"
-    }
-    current_requests = Puma::Enhanced::Stats::CurrentRequests
-    current_requests.reset!
-    current_requests.config = config
-    current_requests.register env
-
-    expect(current_requests.snapshot[:items].first[:PATH_INFO]).to eq "/reports"
+      "action_dispatch.request_id" => "config-path-info-request",
+      "puma.enhanced_stats.started_at" => Time.now.utc.iso8601(6)
+    ) do
+      expect(Puma::Enhanced::Stats::Snapshot.server(
+        server: server_double(enhanced_stats: config)
+      )[:requests].first[:PATH_INFO]).to eq "/reports"
+    end
   end
 
   it "allows custom request fields with a block" do

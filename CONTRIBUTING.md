@@ -38,10 +38,12 @@ Coverage report: `coverage/index.html`.
 
 Any change to the public JSON shape requires **all** of:
 
-1. [schema/enhanced-stats-v1.json](schema/enhanced-stats-v1.json)
-2. [spec/fixtures/enhanced-stats-v1.sample.json](spec/fixtures/enhanced-stats-v1.sample.json)
-3. [spec/contract/enhanced_stats_v1_spec.rb](spec/contract/enhanced_stats_v1_spec.rb)
+1. The active schema under [schema/](schema/) (currently [enhanced-stats-v1.json](schema/enhanced-stats-v1.json))
+2. Matching fixture under [spec/fixtures/](spec/fixtures/)
+3. Contract spec under [spec/contract/](spec/contract/)
 4. [docs/json-contract.md](docs/json-contract.md) and [CHANGELOG.md](CHANGELOG.md)
+
+Legacy schema files under `schema/` are retained only when a major contract revision ships; the active contract is [enhanced-stats-v1.json](schema/enhanced-stats-v1.json) (gem **v1.0.0**).
 
 ## Documentation
 

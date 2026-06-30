@@ -4,8 +4,7 @@ require_relative "stats/version"
 
 require_relative "stats/field"
 require_relative "stats/configuration"
-require_relative "stats/current_requests"
-require_relative "stats/current_requests_middleware"
+require_relative "stats/middleware"
 
 require "puma"
 require "puma/dsl"

@@ -32,18 +32,20 @@ RSpec.describe "cluster mode control app", :integration do
         control_port: @server[:control_port],
         token: @server[:token]
       )
-      reporting = payload.dig("summary", "workers_reporting").to_i
-      in_flight = payload.dig("summary", "requests_in_flight").to_i
+      reporting = payload["workers_reporting"].to_i
+      in_flight = payload["requests_in_flight"].to_i
       break if reporting >= 1 && in_flight >= 1
 
       sleep 1
     end
 
-    expect(payload["schema_version"]).to eq(1)
-    expect(payload["meta"]["mode"]).to eq("cluster")
-    expect(payload["workers"].size).to eq(2)
-    expect(payload["summary"]["workers_reporting"]).to be >= 1
-    expect(payload["summary"]["requests_in_flight"]).to be >= 1
+    expect(payload).not_to have_key("schema_version")
+    expect(payload).to include("collected_at", "worker_status", "workers_reporting", "requests_in_flight")
+    expect(payload["worker_status"].size).to eq(2)
+    expect(payload["workers_reporting"]).to be >= 1
+    expect(payload["requests_in_flight"]).to be >= 1
+    expect(payload["worker_status"].first).to include("last_enhanced_status", "requests")
+    expect(payload["worker_status"].first).not_to have_key("last_checkin")
 
     validate_schema(payload)
   end
