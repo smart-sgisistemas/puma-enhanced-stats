@@ -6,7 +6,7 @@ module Puma
       module CLI
         # Named stub scenarios.
         module StubScenarios
-          NAMES = %w[mixed stale truncated].freeze
+          NAMES = %w[mixed stale truncated single].freeze
         end
       end
     end

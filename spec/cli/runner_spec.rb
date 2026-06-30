@@ -11,7 +11,8 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
     instance_double(
       Puma::Enhanced::Stats::CLI::Fetcher,
       fetch: payload,
-      master_pid: 48_200
+      master_pid: 48_200,
+      worker_check_interval: 5
     )
   end
 
@@ -34,7 +35,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Runner do
 
   it "prints json when requested" do
     expect { described_class.run ["--json", "--no-watch"] }
-      .to output(/"schema_version": 1/).to_stdout
+      .to output(/"collected_at"/).to_stdout
   end
 
   it "returns 1 when fetch fails" do

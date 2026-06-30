@@ -60,29 +60,29 @@ module Puma
           end
 
           def worker_box_specs(payload, process_by_pid, scroll, interval, layout)
-            meta = payload["meta"] || {}
-            workers = prepare_workers payload, process_by_pid, meta
+            view = PayloadView.wrap(payload)
+            workers = prepare_workers view, process_by_pid
             renderer = WorkerRenderer.new @options, @bar, @colors
-            interval_val = meta["worker_check_interval_seconds"].to_i
-            interval_val = 5 if interval_val <= 0
+            interval_val = view.worker_check_interval_seconds
+            interval_val = PayloadView::DEFAULT_SYNC_INTERVAL if interval_val <= 0 && view.cluster?
 
             case layout
             when "focus"
               index = scroll.focus_worker || @options.focus_worker || 0
               worker = workers.find { |w| w["index"].to_i == index.to_i } || workers.first
-              worker ? [worker_spec(renderer, worker, process_by_pid, meta, scroll, interval_val)] : []
+              worker ? [worker_spec(renderer, worker, process_by_pid, view, scroll, interval_val)] : []
             when "compact"
               worker = workers.max_by { |w| w.dig("requests", "items")&.size.to_i } || workers.first
-              worker ? [worker_spec(renderer, worker, process_by_pid, meta, scroll, interval_val)] : []
+              worker ? [worker_spec(renderer, worker, process_by_pid, view, scroll, interval_val)] : []
             else
-              workers.map { |worker| worker_spec(renderer, worker, process_by_pid, meta, scroll, interval_val) }
+              workers.map { |worker| worker_spec(renderer, worker, process_by_pid, view, scroll, interval_val) }
             end
           end
 
-          def worker_spec(renderer, worker, process_by_pid, meta, scroll, interval)
+          def worker_spec(renderer, worker, process_by_pid, view, scroll, interval)
             renderer.box_spec worker, @budget, process_by_pid: process_by_pid,
-                              collected_at: meta["collected_at"], interval: interval,
-                              mode: meta["mode"], scroll: scroll
+                              collected_at: view.collected_at, interval: interval,
+                              mode: view.mode, scroll: scroll
           end
 
           def top_section(payload, host, process_by_pid, attribution, interval, master_pid)
@@ -94,41 +94,43 @@ module Puma
           end
 
           def worker_sections(payload, process_by_pid, scroll, interval, layout)
-            meta = payload["meta"] || {}
-            workers = prepare_workers payload, process_by_pid, meta
+            view = PayloadView.wrap(payload)
+            workers = prepare_workers view, process_by_pid
             renderer = WorkerRenderer.new @options, @bar, @colors
+            interval_val = view.worker_check_interval_seconds
+            interval_val = PayloadView::DEFAULT_SYNC_INTERVAL if interval_val <= 0 && view.cluster?
 
             case layout
             when "two_column", "grid"
-              render_worker_grid workers, renderer, process_by_pid, meta, scroll, interval
+              render_worker_grid workers, renderer, process_by_pid, view, scroll, interval_val
             when "focus"
               index = scroll.focus_worker || @options.focus_worker || 0
               worker = workers.find { |w| w["index"].to_i == index.to_i } || workers.first
               worker ? [renderer.render(worker, @budget, process_by_pid: process_by_pid,
-                                                    collected_at: meta["collected_at"],
-                                                    interval: interval, mode: meta["mode"],
+                                                    collected_at: view.collected_at,
+                                                    interval: interval_val, mode: view.mode,
                                                     scroll: scroll)] : []
             when "compact"
               worker = workers.max_by { |w| w.dig("requests", "items")&.size.to_i } || workers.first
               worker ? [renderer.render(worker, @budget, process_by_pid: process_by_pid,
-                                                    collected_at: meta["collected_at"],
-                                                    interval: interval, mode: meta["mode"],
+                                                    collected_at: view.collected_at,
+                                                    interval: interval_val, mode: view.mode,
                                                     scroll: scroll)] : []
             else
               workers.map do |worker|
                 renderer.render worker, @budget, process_by_pid: process_by_pid,
-                                collected_at: meta["collected_at"], interval: interval,
-                                mode: meta["mode"], scroll: scroll
+                                collected_at: view.collected_at, interval: interval_val,
+                                mode: view.mode, scroll: scroll
               end
             end
           end
 
-          def render_worker_grid(workers, renderer, process_by_pid, meta, scroll, interval)
+          def render_worker_grid(workers, renderer, process_by_pid, view, scroll, interval)
             pairs = workers.each_slice(2).map do |slice|
               slice.map do |worker|
                 renderer.render worker, @budget, process_by_pid: process_by_pid,
-                                collected_at: meta["collected_at"], interval: interval,
-                                mode: meta["mode"], scroll: scroll
+                                collected_at: view.collected_at, interval: interval,
+                                mode: view.mode, scroll: scroll
               end
             end
             pairs.map { |boxes| merge_boxes boxes }
@@ -150,13 +152,12 @@ module Puma
             end.join "\n"
           end
 
-          def prepare_workers(payload, process_by_pid, meta)
-            workers = payload["workers"] || []
-            interval = meta["worker_check_interval_seconds"].to_i
-            interval = 5 if interval <= 0
+          def prepare_workers(view, process_by_pid)
+            interval = view.worker_check_interval_seconds
+            interval = PayloadView::DEFAULT_SYNC_INTERVAL if interval <= 0 && view.cluster?
             sorted = SeveritySorter.sort_workers(
-              workers, process_by_pid: process_by_pid,
-              interval: interval, mode: meta["mode"], collected_at: meta["collected_at"]
+              view.workers, process_by_pid: process_by_pid,
+              interval: interval, mode: view.mode, collected_at: view.collected_at
             )
             if @options.focus_worker
               sorted.select { |w| w["index"].to_i == @options.focus_worker.to_i }

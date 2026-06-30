@@ -70,7 +70,7 @@ module Puma
           end
 
           def processes_lines(payload, max_width: nil)
-            workers = payload["workers"] || []
+            workers = PayloadView.wrap(payload).workers
             rows = sort_rows process_rows(workers)
             headers = %w[PID %CPU %MEM RSS RUN/CAP BACKLOG POOL W#]
             table_rows = rows.map do |row|
@@ -146,7 +146,7 @@ module Puma
               run_cap: "#{puma['running']}/#{puma['max_threads']}",
               backlog: puma["backlog"] || "-",
               pool: puma["pool_capacity"] || "-",
-              w: worker["index"],
+              w: worker["single"] ? "S" : worker["index"],
               sort_cpu: sample&.cpu_percent.to_f,
               sort_index: worker["index"].to_i,
               backlog_sort: puma["backlog"].to_i

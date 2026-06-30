@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "cli/payload_view"
 require_relative "cli/options"
 require_relative "cli/user_config"
 require_relative "cli/terminal"

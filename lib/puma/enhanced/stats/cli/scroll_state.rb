@@ -26,14 +26,14 @@ module Puma
           end
 
           def clamp!(payload)
-            workers = payload["workers"] || []
-            workers.each do |worker|
+            view = PayloadView.wrap(payload)
+            view.workers.each do |worker|
               index = worker["index"].to_i
               count = worker.dig("requests", "items")&.size.to_i
               max_offset = [count - 1, 0].max
               @request_offset[index] = [@request_offset[index], max_offset].min
             end
-            max_worker = [workers.size - 1, 0].max
+            max_worker = [view.workers.size - 1, 0].max
             @worker_offset = [@worker_offset, max_worker].min
           end
         end

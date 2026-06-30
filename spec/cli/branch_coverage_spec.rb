@@ -123,11 +123,7 @@ RSpec.describe "CLI branch coverage" do
     expect(top.render_top budget).to include "Swap"
 
     summary = Puma::Enhanced::Stats::CLI::SummaryRenderer.new bar, colors
-    payload = mixed_payload.merge(
-      "summary" => mixed_payload["summary"].merge("max_threads_total" => 0, "requests_in_flight" => 0)
-    )
-    expect(summary.send :compose_suffix, "stale 1", :warn, "40%").to include "WARN"
-    expect(summary.send :compose_suffix, nil, :ok, "40%").to eq "40%"
+    payload = mixed_payload.merge("max_threads_total" => 0, "requests_in_flight" => 0)
     expect(summary.render(payload, budget, attribution: attribution)).to include "SUMMARY"
 
     options.show_outsiders = true
@@ -136,10 +132,10 @@ RSpec.describe "CLI branch coverage" do
       Puma::Enhanced::Stats::CLI::ProcessSampler::Outsider.new(pid: 9, cpu_percent: 1, mem_percent: 1, rss_bytes: 1, command: "x")
     ])
     frame = Puma::Enhanced::Stats::CLI::FrameRenderer.new options, budget, bar, colors
-    meta = mixed_payload["meta"].merge("worker_check_interval_seconds" => 0)
-    workers = mixed_payload["workers"]
-    frame.send(:prepare_workers, mixed_payload.merge("meta" => meta), {}, meta)
-    compact_worker = workers.find { |w| w.dig("requests", "items")&.any? }
+    view = Puma::Enhanced::Stats::CLI::PayloadView.wrap(
+      mixed_payload.merge("_cli" => { "worker_check_interval_seconds" => 0 })
+    )
+    frame.send(:prepare_workers, view, {})
     frame.send(:worker_sections, mixed_payload, {}, Puma::Enhanced::Stats::CLI::ScrollState.new, 5, "compact")
 
     manager = Puma::Enhanced::Stats::CLI::ScreenManager.new(options)
@@ -148,13 +144,14 @@ RSpec.describe "CLI branch coverage" do
     options.modal = :help
     manager.handle("p", scroll: Puma::Enhanced::Stats::CLI::ScrollState.new, payload: mixed_payload)
     options.modal = nil
-    manager.handle("[", scroll: Puma::Enhanced::Stats::CLI::ScrollState.new, payload: { "workers" => [] })
+    manager.handle("[", scroll: Puma::Enhanced::Stats::CLI::ScrollState.new, payload: { "worker_status" => [] })
 
     runner = Puma::Enhanced::Stats::CLI::Runner.new
     opts = runner.send :parse, ["--filter", "bad", "--no-rc"]
     expect(opts.filters).to eq({})
     runner.instance_variable_set(:@options, Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_top = true })
-    runner.instance_variable_set(:@fetcher, instance_double(Puma::Enhanced::Stats::CLI::Fetcher, master_pid: nil))
+    runner.instance_variable_set(:@sync_interval, 5)
+    runner.instance_variable_set(:@fetcher, instance_double(Puma::Enhanced::Stats::CLI::Fetcher, master_pid: nil, worker_check_interval: 5))
     runner.instance_variable_set(:@scroll, Puma::Enhanced::Stats::CLI::ScrollState.new)
     runner.instance_variable_set :@screen, manager
     allow(Puma::Enhanced::Stats::CLI::Terminal).to receive(:size).and_return [40, 80]
@@ -168,19 +165,18 @@ RSpec.describe "CLI branch coverage" do
     allow(runner).to receive :print_frame
     allow(runner).to receive(:loop).and_yield
     allow(Puma::Enhanced::Stats::CLI::Keyboard).to receive(:refresh?).and_return false
-    fetcher = instance_double(Puma::Enhanced::Stats::CLI::Fetcher, fetch: mixed_payload, master_pid: nil)
+    fetcher = instance_double(Puma::Enhanced::Stats::CLI::Fetcher, fetch: mixed_payload, master_pid: nil, worker_check_interval: 5)
+    runner.instance_variable_set :@sync_interval, 5
     runner.instance_variable_set :@fetcher, fetcher
     runner.instance_variable_set(:@options, Puma::Enhanced::Stats::CLI::Options.new)
     expect(runner.send :run_watch, mixed_payload).to eq 0
 
     options = Puma::Enhanced::Stats::CLI::Options.new.tap { |o| o.no_color = true }
     renderer = Puma::Enhanced::Stats::CLI::WorkerRenderer.new options, bar, colors
-    worker = mixed_payload["workers"].first.merge(
-      "puma" => mixed_payload["workers"].first["puma"].merge("max_threads" => 0)
-    )
+    worker = mixed_workers.first.merge("puma" => mixed_workers.first["puma"].merge("max_threads" => 0))
     renderer.render(
       worker, budget, process_by_pid: {},
-      collected_at: mixed_payload["meta"]["collected_at"], interval: 5, mode: "cluster",
+      collected_at: mixed_view.collected_at, interval: 5, mode: "cluster",
       scroll: Puma::Enhanced::Stats::CLI::ScrollState.new
     )
 

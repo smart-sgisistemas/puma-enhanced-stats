@@ -99,7 +99,8 @@ module Puma
           end
 
           def current_worker(scroll, payload)
-            workers = payload["workers"] || []
+            view = PayloadView.wrap(payload)
+            workers = view.workers
             index = scroll.focus_worker || @options.focus_worker || workers.dig(0, "index")
             workers.find { |w| w["index"].to_i == index.to_i } || workers.first
           end

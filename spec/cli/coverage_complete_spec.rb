@@ -137,10 +137,12 @@ RSpec.describe "CLI coverage completion" do
       expect(attribution.degraded?).to be true
     end
 
-    it "uses fallback poll interval when meta interval is zero" do
+    it "uses fallback poll interval when sync interval is zero" do
       runner = described_class.new
-      expect(runner.send :poll_interval, { "meta" => { "worker_check_interval_seconds" => 0 } }).to eq 5
-      expect(runner.send :poll_interval, { "meta" => { "worker_check_interval_seconds" => 3 } }).to eq 3
+      runner.instance_variable_set(:@sync_interval, 0)
+      expect(runner.send(:poll_interval, { "worker_status" => [] })).to eq 5
+      runner.instance_variable_set(:@sync_interval, 3)
+      expect(runner.send(:poll_interval, { "worker_status" => [] })).to eq 3
     end
   end
 
@@ -303,14 +305,10 @@ RSpec.describe "CLI coverage completion" do
       renderer = described_class.new bar, colors
       budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(30, 80, options, worker_count: 2)
       payload = mixed_payload.merge(
-        "summary" => mixed_payload["summary"].merge(
-          "workers_reporting" => 1,
-          "workers_total" => 2,
-          "workers_stale" => 0,
-          "requests_dropped_total" => 1,
-          "requests_truncated" => false,
-          "max_threads_total" => 0
-        )
+        "workers_reporting" => 1,
+        "workers_total" => 2,
+        "workers_stale" => 0,
+        "max_threads_total" => 0
       )
       attribution = Puma::Enhanced::Stats::CLI::ResourceAttribution.compute(
         host: Puma::Enhanced::Stats::CLI::HostMetrics::EMPTY,
@@ -340,7 +338,7 @@ RSpec.describe "CLI coverage completion" do
 
   describe Puma::Enhanced::Stats::CLI::StubPayloadBuilder do
     it "loads stale and truncated scenarios" do
-      expect(described_class.build(scenario: "stale", workers: 1, stale: 1)["workers"].size).to eq 1
+      expect(described_class.build(scenario: "stale", workers: 1, stale: 1)["worker_status"].size).to eq 1
       expect(described_class.build(scenario: "truncated", workers: 1, stale: 0)).to be_a Hash
       expect(described_class.build(scenario: "custom", workers: 1, stale: 0)).to be_a Hash
     end

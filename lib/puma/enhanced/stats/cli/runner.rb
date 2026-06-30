@@ -18,6 +18,7 @@ module Puma
           def run(argv)
             @options = parse argv
             @fetcher = Fetcher.new(overrides: @options.connection_overrides)
+            @sync_interval = @fetcher.worker_check_interval
             @scroll = ScrollState.new
             @screen = ScreenManager.new @options
             payload = @fetcher.fetch
@@ -138,14 +139,18 @@ module Puma
           end
 
           def render_frame(payload, interval: 5)
-            return @screen.render_modal budget_for payload if @screen.modal_open?
+            return @screen.render_modal budget_for(payload) if @screen.modal_open?
 
+            view = PayloadView.wrap(
+              payload, sync_interval: @sync_interval, server_pid: @fetcher.master_pid
+            )
             rows, cols = Terminal.size
             cols = @options.width || cols
-            workers = payload["workers"] || []
+            workers = view.workers
             layout = LayoutRegistry.resolve(
               @options,
-              LayoutBudget.new(rows, cols, @options, worker_count: workers.size)
+              LayoutBudget.new(rows, cols, @options, worker_count: workers.size),
+              mode: view.mode
             )
             budget = LayoutBudget.new(
               rows, cols, @options, worker_count: workers.size,
@@ -168,7 +173,7 @@ module Puma
           def budget_for(payload)
             rows, cols = Terminal.size
             cols = @options.width || cols
-            LayoutBudget.new(rows, cols, @options, worker_count: (payload["workers"] || []).size)
+            LayoutBudget.new(rows, cols, @options, worker_count: PayloadView.wrap(payload).workers.size)
           end
 
           def build_attribution(host, process_by_pid)
@@ -185,8 +190,8 @@ module Puma
           end
 
           def poll_interval(payload)
-            value = payload.dig("meta", "worker_check_interval_seconds").to_i
-            value.positive? ? value : 5
+            interval = PayloadView.wrap(payload, sync_interval: @sync_interval).worker_check_interval_seconds
+            interval.positive? ? interval : 5
           end
 
           def monotonic = Process.clock_gettime(Process::CLOCK_MONOTONIC)

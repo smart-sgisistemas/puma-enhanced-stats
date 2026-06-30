@@ -20,13 +20,13 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
   end
 
   it "fetches enhanced stats over HTTP" do
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     allow(Net::HTTP).to receive(:get_response).and_return response
 
     result = described_class.new.fetch
-    expect(result["schema_version"]).to eq 1
+    expect(result["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "accepts a pre-resolved connection entry" do
@@ -36,14 +36,14 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
       master_pid: 42,
       state_path: nil
     )
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(port: 9393)).and_return response
     expect(Puma::Enhanced::Stats::CLI::ControlDiscovery).not_to receive :resolve
 
     fetcher = described_class.new resolved: entry
-    expect(fetcher.fetch["schema_version"]).to eq 1
+    expect(fetcher.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
     expect(fetcher.master_pid).to eq 42
   end
 
@@ -57,22 +57,22 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
 
   it "normalizes tcp control URLs" do
     stub_discovery control_url: "tcp://127.0.0.1:9293", token: nil
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(host: "127.0.0.1", port: 9293)).and_return response
 
-    expect(described_class.new.fetch["schema_version"]).to eq 1
+    expect(described_class.new.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "reads URL and token from discovery" do
     stub_discovery control_url: "http://127.0.0.1:9393", token: "from-discovery"
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(port: 9393)).and_return response
 
-    expect(described_class.new.fetch["schema_version"]).to eq 1
+    expect(described_class.new.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "raises when control URL is missing" do
@@ -106,32 +106,32 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
 
   it "normalizes ssl control URLs" do
     stub_discovery control_url: "ssl://127.0.0.1:9293", token: nil
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(host: "127.0.0.1", port: 9293)).and_return response
 
-    expect(described_class.new.fetch["schema_version"]).to eq 1
+    expect(described_class.new.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "fetches without a token when none is configured" do
     stub_discovery control_url: "http://127.0.0.1:9293", token: nil
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     allow(Net::HTTP).to receive(:get_response).and_return response
 
-    expect(described_class.new.fetch["schema_version"]).to eq 1
+    expect(described_class.new.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "normalizes control URLs with a trailing slash" do
     stub_discovery control_url: "http://127.0.0.1:9293/", token: nil
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     expect(Net::HTTP).to receive(:get_response).with(having_attributes(request_uri: "/enhanced-stats")).and_return response
 
-    expect(described_class.new.fetch["schema_version"]).to eq 1
+    expect(described_class.new.fetch["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 
   it "exposes master pid from discovery" do
@@ -157,7 +157,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::Fetcher do
           state_path: nil
         )
       )
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     response = Net::HTTPOK.new "1.1", "200", "OK"
     allow(response).to receive(:body).and_return(payload.to_json)
     allow(Net::HTTP).to receive(:get_response).and_return response

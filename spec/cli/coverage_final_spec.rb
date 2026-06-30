@@ -239,7 +239,7 @@ RSpec.describe "CLI final coverage sweep" do
         }
       )
       output = summary.render(
-        mixed_payload.merge("summary" => mixed_payload["summary"].merge("workers_stale" => 0, "workers_reporting" => 3)),
+        mixed_payload.merge("workers_stale" => 0, "workers_reporting" => 3),
         budget,
         attribution: warn_attr
       )

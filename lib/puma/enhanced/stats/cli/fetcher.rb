@@ -31,6 +31,9 @@ module Puma
           # @return [Integer, nil] cluster master PID from the state file, if known
           def master_pid = @resolved.master_pid
 
+          # @return [Integer, nil] worker_check_interval from Puma config, if known
+          def worker_check_interval = @resolved.worker_check_interval
+
           private
 
           def build_uri

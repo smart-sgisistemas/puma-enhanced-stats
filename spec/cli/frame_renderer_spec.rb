@@ -46,14 +46,14 @@ RSpec.describe "CLI grid alignment" do
 end
 
 RSpec.describe "UI acceptance criteria" do
-  it "renders SUMMARY with exactly 7 lines in mixed scenario" do
+  it "renders SUMMARY with exactly 5 lines in mixed scenario" do
     output = render_dashboard(width: 80, no_top: true)
-    expect(summary_content_lines(output).size).to eq 7
+    expect(summary_content_lines(output).size).to eq 5
   end
 
-  it "uses info badge for requests_truncated" do
+  it "shows requests in flight in summary" do
     output = render_dashboard(width: 80, no_top: true)
-    expect(output).to match /Requests truncated\s+yes.*info/i
+    expect(output).to match(/Requests in flight/)
   end
 
   it "does not stack method at width 200 inline" do
@@ -79,11 +79,45 @@ RSpec.describe "UI acceptance criteria" do
     expect(output).to include("pass -w 80")
   end
 
-  it "shows terminal width in the header" do
+  it "shows cluster mode in the header" do
     output = render_dashboard(width: 80, no_top: true)
     expect(output).to include("80 COLS")
     expect(output).to include("cluster")
+    expect(output).to include("workers 3")
     expect(output).to include("collected")
+  end
+
+  it "renders single-mode dashboard from fixture" do
+    payload = JSON.parse(File.read(File.expand_path("../fixtures/stub/single-server.json", __dir__)))
+    options = Puma::Enhanced::Stats::CLI::Options.new.tap do |o|
+      o.no_watch = true
+      o.no_top = true
+      o.no_color = true
+      o.width = 80
+    end
+    scroll = Puma::Enhanced::Stats::CLI::ScrollState.new
+    budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 80, options, worker_count: 1)
+    colors = Puma::Enhanced::Stats::CLI::Colors.new options
+    bar = Puma::Enhanced::Stats::CLI::Bar.new colors
+    output = Puma::Enhanced::Stats::CLI::FrameRenderer.new(options, budget, bar, colors).render(
+      payload,
+      host: Puma::Enhanced::Stats::CLI::HostMetrics::EMPTY,
+      process_by_pid: {},
+      attribution: Puma::Enhanced::Stats::CLI::ResourceAttribution.compute(
+        host: Puma::Enhanced::Stats::CLI::HostMetrics::EMPTY,
+        puma_pids: [], process_by_pid: {}, degraded: false
+      ),
+      scroll: scroll,
+      interval: 5,
+      master_pid: nil
+    )
+
+    expect(output).to include("single")
+    expect(output).to include("SERVER")
+    expect(output).to include("live read")
+    expect(output).not_to include("Workers reporting")
+    expect(output).not_to include("checkin")
+    expect(summary_content_lines(output).size).to eq 5
   end
 
   it "wraps the full display error message on very narrow terminals" do
@@ -112,7 +146,9 @@ RSpec.describe Puma::Enhanced::Stats::CLI::ScrollState do
   it "keeps offset across clamp when count is stable" do
     scroll = described_class.new
     scroll.bump_request! 0, 3
-    payload = { "workers" => [{ "index" => 0, "requests" => { "items" => Array.new(10) { {} } } }] }
+    payload = {
+      "worker_status" => [{ "index" => 0, "requests" => Array.new(10) { {} } }]
+    }
     scroll.clamp! payload
     expect(scroll.request_offset_for 0).to eq 3
   end

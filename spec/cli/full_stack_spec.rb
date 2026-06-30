@@ -113,6 +113,18 @@ RSpec.describe Puma::Enhanced::Stats::CLI::LayoutRegistry do
     expect(result.layout).to eq "stacked"
     expect(result.hint).to include "need 120 cols"
   end
+
+  it "forces stacked layout in single mode" do
+    options = Puma::Enhanced::Stats::CLI::Options.new
+    options.frame_layout = "grid"
+    result = described_class.resolve(
+      options,
+      Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 200, options, worker_count: 1),
+      mode: "single"
+    )
+    expect(result.layout).to eq "stacked"
+    expect(result.hint).to include "single mode"
+  end
 end
 
 RSpec.describe Puma::Enhanced::Stats::CLI::SyncFreshness do
@@ -130,7 +142,7 @@ end
 
 RSpec.describe Puma::Enhanced::Stats::CLI::StubServer do
   it "serves enhanced-stats over HTTP" do
-    payload = { "schema_version" => 1 }
+    payload = { "collected_at" => "2026-01-01T00:00:00Z", "worker_status" => [] }
     server = described_class.new port: 0, token: "dev", payload: payload
     thread = Thread.new { server.start }
     20.times do
@@ -146,7 +158,7 @@ RSpec.describe Puma::Enhanced::Stats::CLI::StubServer do
     end
     skip "stub server port 9293 unavailable in CI" unless response.is_a?(Net::HTTPSuccess)
 
-    expect(JSON.parse(response.body)["schema_version"]).to eq 1
+    expect(JSON.parse(response.body)["collected_at"]).to eq "2026-01-01T00:00:00Z"
   end
 end
 

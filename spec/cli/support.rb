@@ -23,12 +23,14 @@ module PumaEnhancedStats
       options.frame_layout = "compact" if frame_layout == :compact
 
       payload = mixed_payload
+      view = Puma::Enhanced::Stats::CLI::PayloadView.wrap(payload)
       scroll = Puma::Enhanced::Stats::CLI::ScrollState.new
       rows, cols = 40, width
-      workers = payload["workers"] || []
+      workers = view.workers
       layout = Puma::Enhanced::Stats::CLI::LayoutRegistry.resolve(
         options,
-        Puma::Enhanced::Stats::CLI::LayoutBudget.new(rows, cols, options, worker_count: workers.size)
+        Puma::Enhanced::Stats::CLI::LayoutBudget.new(rows, cols, options, worker_count: workers.size),
+        mode: view.mode
       )
       budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(
         rows, cols, options, worker_count: workers.size,
@@ -48,6 +50,14 @@ module PumaEnhancedStats
       )
     ensure
       Puma::Enhanced::Stats::CLI::Terminal.tty_override = nil
+    end
+
+    def mixed_workers
+      Puma::Enhanced::Stats::CLI::PayloadView.wrap(mixed_payload).workers
+    end
+
+    def mixed_view
+      Puma::Enhanced::Stats::CLI::PayloadView.wrap(mixed_payload)
     end
 
     def stub_process_samples(workers)

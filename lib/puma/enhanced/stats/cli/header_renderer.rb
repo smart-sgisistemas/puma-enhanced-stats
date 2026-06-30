@@ -9,10 +9,9 @@ module Puma
           SEGMENT_SEPARATOR = " │ "
 
           def box_spec(payload, budget:)
-            meta = payload["meta"] || {}
-            version = meta["gem_version"] || Stats::VERSION
-            title = "PUMA ENHANCED STATS ─ v#{version}"
-            lines = meta_lines(meta, budget)
+            view = PayloadView.wrap(payload)
+            title = "PUMA ENHANCED STATS ─ v#{view.gem_version}"
+            lines = meta_lines(view, budget)
             Box::Spec.new(title: title, lines: lines)
           end
 
@@ -23,13 +22,17 @@ module Puma
 
           private
 
-          def meta_lines(meta, budget)
-            segments = [
-              meta["mode"],
-              "sync #{meta['worker_check_interval_seconds']}s",
-              "collected #{Format.collected_clock meta['collected_at']}",
-              Format.cols_label(budget.cols)
-            ]
+          def meta_lines(view, budget)
+            interval = view.worker_check_interval_seconds
+            sync_label = view.single? ? "live" : "sync #{interval}s"
+            segments = [view.mode]
+            if view.cluster?
+              segments << "workers #{view.raw['workers']}"
+              segments << "phase #{view.raw['phase']}"
+            end
+            segments << sync_label
+            segments << "collected #{Format.collected_clock view.collected_at}"
+            segments << Format.cols_label(budget.cols)
             Format.wrap_segments(
               segments,
               separator: SEGMENT_SEPARATOR,

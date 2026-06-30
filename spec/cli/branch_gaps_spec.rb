@@ -83,25 +83,36 @@ RSpec.describe "CLI branch gaps" do
 
     summary = Puma::Enhanced::Stats::CLI::SummaryRenderer.new bar, colors
     payload = mixed_payload.merge(
-      "summary" => mixed_payload["summary"].merge(
-        "workers_reporting" => 3, "workers_total" => 3, "workers_stale" => 0,
-        "requests_in_flight" => 0
-      ),
-      "workers" => []
+      "workers_reporting" => 3,
+      "workers_total" => 3,
+      "workers_stale" => 0,
+      "requests_in_flight" => 0,
+      "worker_status" => []
     )
     expect(summary.render(payload, budget, attribution: attribution)).to include "SUMMARY"
 
     compact_payload = {
-      "meta" => mixed_payload["meta"],
-      "summary" => mixed_payload["summary"],
-      "workers" => [{
-        "index" => 0, "pid" => 1, "synced_at" => mixed_payload["meta"]["collected_at"],
-        "puma" => { "running" => 1, "max_threads" => 5, "backlog" => 0, "pool_capacity" => 4, "busy_threads" => 1 },
-        "requests" => {
-          "items" => [{ "id" => "1", "started_at" => "2026-01-01T00:00:00Z", "path_info" => "/short", "session" => {} }],
-          "meta" => { "request_limit" => 10, "count" => 1, "limit_policy" => "drop", "truncated" => false, "dropped_count" => 0 }
-        }
-      }]
+      "collected_at" => mixed_view.collected_at,
+      "workers_total" => 1,
+      "workers_reporting" => 1,
+      "workers_stale" => 0,
+      "requests_in_flight" => 1,
+      "backlog_total" => 0,
+      "busy_threads_total" => 1,
+      "max_threads_total" => 5,
+      "pool_capacity_total" => 4,
+      "worker_status" => [{
+        "index" => 0,
+        "pid" => 1,
+        "last_enhanced_checkin" => mixed_view.collected_at,
+        "last_enhanced_status" => {
+          "running" => 1, "max_threads" => 5, "backlog" => 0, "pool_capacity" => 4, "busy_threads" => 1
+        },
+        "requests" => [
+          { "id" => "1", "started_at" => "2026-01-01T00:00:00Z", "path_info" => "/short", "session" => {} }
+        ]
+      }],
+      "_cli" => { "worker_check_interval_seconds" => 5 }
     }
     options.frame_layout = "compact"
     frame_budget = Puma::Enhanced::Stats::CLI::LayoutBudget.new(40, 80, options, worker_count: 1, layout: "compact")

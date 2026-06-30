@@ -21,14 +21,15 @@ module Puma
               "O outsiders  t top+proc  W save  ?/h help  x clear filters",
               "j/k request line  [/] page  J/K workers  0-9 focus  Ctrl+C quit"
             ],
-            "Seções" => %w[HEADER TOP PROCESSES SUMMARY WORKERS OUTSIDE\ PUMA FOOTER],
+            "Seções" => %w[HEADER TOP PROCESSES SUMMARY WORKERS/SERVER OUTSIDE\ PUMA FOOTER],
             "SUMMARY" => [
-              "7 lines: workers, in-flight, dropped, truncated, backlog, busy, pool",
+              "Cluster: workers reporting, in-flight, backlog/busy/pool totals",
+              "Single: in-flight, backlog, running, busy threads, pool capacity",
               "Optional Host vs Puma LabelLine when attribution warn/crit"
             ],
             "Worker" => [
-              "synced_at LabelLine then puma MetricLines then rss/cpu from ps",
-              "registry line and IN-FLIGHT table with scroll offsets"
+              "Cluster: WORKER box with checkin + pool metrics + in-flight table",
+              "Single: SERVER box with live pool metrics (no checkin) + in-flight table"
             ],
             "TOP & host" => [
               "Load free text; CPU/Memory MetricLine grid with Puma ~ suffix",
@@ -36,7 +37,7 @@ module Puma
             ],
             "Badges" => [
               "ok green  info cyan  WARN yellow  CRIT red",
-              "backlog > 0 always CRIT; requests_truncated always info"
+              "backlog > 0 always CRIT"
             ]
           }.freeze
 

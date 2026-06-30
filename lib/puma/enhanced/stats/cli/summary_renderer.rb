@@ -4,7 +4,7 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # SUMMARY block — exactly 7 MetricLine/LabelLine rows (+ optional Host vs Puma).
+        # SUMMARY block — cluster aggregates vs single pool counters (+ optional Host vs Puma).
         class SummaryRenderer
           def initialize(bar, colors)
             @bar = bar
@@ -23,51 +23,74 @@ module Puma
           private
 
           def summary_lines(payload, attribution, budget)
+            view = PayloadView.wrap(payload)
             content_width = budget.metric_content_width
-            summary = payload["summary"] || {}
-            max_threads = summary["max_threads_total"].to_i
-            request_limit = request_limit_total payload
-            reporting = summary["workers_reporting"].to_i
-            total_workers = summary["workers_total"].to_i
-            sync_status = workers_sync_status payload
-
-            lines = []
-            lines << metric(
-              "Workers reporting", "#{reporting} / #{total_workers}",
-              ratio: total_workers.positive? ? reporting.to_f / total_workers : 0.0,
-              suffix: sync_status[:suffix],
-              bar_level: sync_status[:level]
-            )
-            lines << metric(
-              "Requests in flight", "#{summary['requests_in_flight']} / #{request_limit}",
-              ratio: request_limit.positive? ? summary["requests_in_flight"].to_f / request_limit : 0.0
-            )
-            lines << label("Requests dropped", summary["requests_dropped_total"].to_s,
-                           badge: AlertLevel.for_dropped(summary["requests_dropped_total"]))
-            truncated = summary["requests_truncated"]
-            lines << label("Requests truncated", truncated ? "yes" : "no",
-                           badge: truncated ? :info : :ok)
-            lines << metric(
-              "Backlog total", "#{summary['backlog_total']} / #{max_threads}",
-              ratio: max_threads.positive? ? summary["backlog_total"].to_f / max_threads : 0.0,
-              backlog: true
-            )
-            lines << metric(
-              "Busy threads", "#{summary['busy_threads_total']} / #{max_threads}",
-              ratio: max_threads.positive? ? summary["busy_threads_total"].to_f / max_threads : 0.0
-            )
-            lines << metric(
-              "Pool capacity", "#{summary['pool_capacity_total']} / #{max_threads}",
-              ratio: max_threads.positive? ? summary["pool_capacity_total"].to_f / max_threads : 0.0
-            )
+            lines = view.cluster? ? cluster_lines(view) : single_lines(view)
             if attribution.show_summary_line?
               lines << label("Host vs Puma", attribution.summary_value, badge: attribution.level)
             end
             lines.flat_map { |line| line.render(content_width: content_width) }
           end
 
-          def request_limit_total(payload)
-            Array(payload["workers"]).sum { |w| w.dig("requests", "meta", "request_limit").to_i }
+          def cluster_lines(view)
+            max_threads = view.max_threads_total
+            reporting = view.workers_reporting
+            total_workers = view.workers_total
+            sync_status = workers_sync_status(view)
+
+            [
+              metric(
+                "Workers reporting", "#{reporting} / #{total_workers}",
+                ratio: total_workers.positive? ? reporting.to_f / total_workers : 0.0,
+                suffix: sync_status[:suffix],
+                bar_level: sync_status[:level]
+              ),
+              metric(
+                "Requests in flight", "#{view.requests_in_flight} / #{max_threads}",
+                ratio: max_threads.positive? ? view.requests_in_flight.to_f / max_threads : 0.0
+              ),
+              metric(
+                "Backlog total", "#{view.backlog_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.backlog_total.to_f / max_threads : 0.0,
+                backlog: true
+              ),
+              metric(
+                "Busy threads", "#{view.busy_threads_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.busy_threads_total.to_f / max_threads : 0.0
+              ),
+              metric(
+                "Pool capacity", "#{view.pool_capacity_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.pool_capacity_total.to_f / max_threads : 0.0
+              )
+            ]
+          end
+
+          def single_lines(view)
+            max_threads = view.max_threads_total
+
+            [
+              metric(
+                "Requests in flight", "#{view.requests_in_flight} / #{max_threads}",
+                ratio: max_threads.positive? ? view.requests_in_flight.to_f / max_threads : 0.0
+              ),
+              metric(
+                "Backlog", "#{view.backlog_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.backlog_total.to_f / max_threads : 0.0,
+                backlog: true
+              ),
+              metric(
+                "Running", "#{view.running_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.running_total.to_f / max_threads : 0.0
+              ),
+              metric(
+                "Busy threads", "#{view.busy_threads_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.busy_threads_total.to_f / max_threads : 0.0
+              ),
+              metric(
+                "Pool capacity", "#{view.pool_capacity_total} / #{max_threads}",
+                ratio: max_threads.positive? ? view.pool_capacity_total.to_f / max_threads : 0.0
+              )
+            ]
           end
 
           def metric(label, value, ratio:, suffix: nil, bar_level: nil, backlog: false)
@@ -79,37 +102,19 @@ module Puma
             )
           end
 
-          def workers_sync_status(payload)
-            meta = payload["meta"] || {}
-            interval = meta["worker_check_interval_seconds"].to_i
-            interval = 5 if interval <= 0
+          def workers_sync_status(view)
+            interval = view.worker_check_interval_seconds
+            interval = PayloadView::DEFAULT_SYNC_INTERVAL if interval <= 0
             AlertLevel.aggregate_worker_sync(
-              payload["workers"],
-              collected_at: meta["collected_at"],
+              view.workers,
+              collected_at: view.collected_at,
               interval_seconds: interval,
-              mode: meta["mode"]
+              mode: view.mode
             )
           end
 
           def label(label, value, badge:)
             LabelLine.new(label: label, value: value, badge: badge, colors: @colors)
-          end
-
-          def compose_suffix(extra, level, auto)
-            return auto.to_s if extra.nil? || extra.to_s.empty?
-            return extra if extra.is_a?(String) && extra.include?("\e")
-
-            if extra.is_a?(String)
-              begin
-                sym = extra.to_sym
-                return @colors.badge(sym) if @colors && %i[ok warn crit info degraded].include?(sym)
-              rescue StandardError
-                # custom text suffixes use the alert level badge
-              end
-              return @colors ? @colors.badge(level) : level.to_s.upcase
-            end
-
-            @colors ? @colors.badge(level) : level.to_s.upcase
           end
         end
       end

@@ -1,0 +1,39 @@
+{
+  "collected_at": "2026-06-12T14:32:01Z",
+  "backlog": 0,
+  "running": 2,
+  "pool_capacity": 3,
+  "busy_threads": 2,
+  "io_threads": 0,
+  "backlog_max": 0,
+  "max_threads": 5,
+  "requests_count": 42,
+  "reactor_max": 0,
+  "requests_in_flight": 2,
+  "requests": [
+    {
+      "id": "s1",
+      "started_at": "2026-06-12T14:31:50Z",
+      "method": "GET",
+      "path_info": "/dashboard",
+      "remote_ip": "127.0.0.1",
+      "session": { "user_id": "7" }
+    },
+    {
+      "id": "s2",
+      "started_at": "2026-06-12T14:31:58Z",
+      "method": "POST",
+      "path_info": "/api/events",
+      "remote_ip": "10.0.0.5"
+    }
+  ],
+  "versions": {
+    "puma": "8.0.2",
+    "puma-enhanced-stats": "1.0.0",
+    "ruby": {
+      "engine": "ruby",
+      "version": "3.2.2",
+      "patchlevel": 0
+    }
+  }
+}

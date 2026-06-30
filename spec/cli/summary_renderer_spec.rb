@@ -17,28 +17,21 @@ RSpec.describe Puma::Enhanced::Stats::CLI::SummaryRenderer do
 
   it "marks all workers reporting as ok when counts match and sync is fresh" do
     payload = {
-      "meta" => {
-        "collected_at" => "2026-06-12T14:32:01Z",
-        "mode" => "cluster",
-        "worker_check_interval_seconds" => 5
-      },
-      "summary" => {
-        "workers_reporting" => 3,
-        "workers_total" => 3,
-        "workers_stale" => 0,
-        "requests_in_flight" => 0,
-        "requests_dropped_total" => 0,
-        "requests_truncated" => false,
-        "backlog_total" => 0,
-        "busy_threads_total" => 0,
-        "max_threads_total" => 15,
-        "pool_capacity_total" => 15
-      },
-      "workers" => [
-        { "synced_at" => "2026-06-12T14:31:59Z" },
-        { "synced_at" => "2026-06-12T14:31:58Z" },
-        { "synced_at" => "2026-06-12T14:31:57Z" }
-      ]
+      "collected_at" => "2026-06-12T14:32:01Z",
+      "workers_total" => 3,
+      "workers_reporting" => 3,
+      "workers_stale" => 0,
+      "requests_in_flight" => 0,
+      "backlog_total" => 0,
+      "busy_threads_total" => 0,
+      "max_threads_total" => 15,
+      "pool_capacity_total" => 15,
+      "worker_status" => [
+        { "index" => 0, "last_enhanced_checkin" => "2026-06-12T14:31:59Z" },
+        { "index" => 1, "last_enhanced_checkin" => "2026-06-12T14:31:58Z" },
+        { "index" => 2, "last_enhanced_checkin" => "2026-06-12T14:31:57Z" }
+      ],
+      "_cli" => { "worker_check_interval_seconds" => 5 }
     }
 
     output = renderer.render(payload, budget, attribution: attribution)
@@ -51,28 +44,21 @@ RSpec.describe Puma::Enhanced::Stats::CLI::SummaryRenderer do
 
   it "marks workers reporting as warn when sync is stale within 2x interval" do
     payload = {
-      "meta" => {
-        "collected_at" => "2026-06-12T14:32:01Z",
-        "mode" => "cluster",
-        "worker_check_interval_seconds" => 5
-      },
-      "summary" => {
-        "workers_reporting" => 3,
-        "workers_total" => 3,
-        "workers_stale" => 0,
-        "requests_in_flight" => 0,
-        "requests_dropped_total" => 0,
-        "requests_truncated" => false,
-        "backlog_total" => 0,
-        "busy_threads_total" => 0,
-        "max_threads_total" => 15,
-        "pool_capacity_total" => 15
-      },
-      "workers" => [
-        { "synced_at" => "2026-06-12T14:31:59Z" },
-        { "synced_at" => "2026-06-12T14:31:58Z" },
-        { "synced_at" => "2026-06-12T14:31:53Z" }
-      ]
+      "collected_at" => "2026-06-12T14:32:01Z",
+      "workers_total" => 3,
+      "workers_reporting" => 3,
+      "workers_stale" => 0,
+      "requests_in_flight" => 0,
+      "backlog_total" => 0,
+      "busy_threads_total" => 0,
+      "max_threads_total" => 15,
+      "pool_capacity_total" => 15,
+      "worker_status" => [
+        { "index" => 0, "last_enhanced_checkin" => "2026-06-12T14:31:59Z" },
+        { "index" => 1, "last_enhanced_checkin" => "2026-06-12T14:31:58Z" },
+        { "index" => 2, "last_enhanced_checkin" => "2026-06-12T14:31:53Z" }
+      ],
+      "_cli" => { "worker_check_interval_seconds" => 5 }
     }
 
     output = renderer.render(payload, budget, attribution: attribution)
@@ -80,25 +66,22 @@ RSpec.describe Puma::Enhanced::Stats::CLI::SummaryRenderer do
     expect(output).to include "stale 1"
   end
 
-  it "uses zero ratio when request limits sum to zero" do
+  it "uses zero ratio when max threads is zero" do
     payload = {
-      "summary" => {
-        "workers_reporting" => 1,
-        "workers_total" => 1,
-        "workers_stale" => 0,
-        "requests_in_flight" => 0,
-        "requests_dropped_total" => 0,
-        "requests_truncated" => false,
-        "backlog_total" => 0,
-        "busy_threads_total" => 0,
-        "max_threads_total" => 5,
-        "pool_capacity_total" => 5
-      },
-      "workers" => []
+      "collected_at" => "2026-06-12T14:32:01Z",
+      "backlog" => 0,
+      "running" => 0,
+      "pool_capacity" => 0,
+      "busy_threads" => 0,
+      "max_threads" => 0,
+      "requests_in_flight" => 0,
+      "requests" => []
     }
 
     output = renderer.render(payload, budget, attribution: attribution)
 
     expect(output).to match(/Requests in flight\s+0 \/ 0/)
+    expect(output).not_to include "Workers reporting"
+    expect(output).to include "Running"
   end
 end

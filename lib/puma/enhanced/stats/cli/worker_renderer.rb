@@ -4,7 +4,7 @@ module Puma
   module Enhanced
     module Stats
       module CLI
-        # Single worker box renderer.
+        # Worker (cluster) or server (single) box renderer.
         class WorkerRenderer
           def initialize(options, bar, colors)
             @options = options
@@ -17,6 +17,7 @@ module Puma
             sample = process_by_pid[worker["pid"]]
             mem_total = ProcessSampler.memory_capacity_bytes || 1
             max = puma["max_threads"].to_i
+            single = worker["single"] || mode == "single"
             sync = SyncFreshness.evaluate(
               synced_at: worker["synced_at"],
               collected_at: collected_at,
@@ -24,9 +25,9 @@ module Puma
               mode: mode
             )
 
-            title = "WORKER #{worker['index']} ─ pid #{worker['pid']} ─ #{sync.title_fragment}"
-            badge = worker_title_badge puma, sync
-            top_lines = worker_metrics puma, sample, max, mem_total, sync, worker, budget
+            title = box_title(worker, sync, single: single)
+            badge = worker_title_badge(puma, sync, single: single)
+            top_lines = worker_metrics(puma, sample, max, mem_total, sync, worker, single: single)
             items = RequestPipeline.process(
               worker.dig("requests", "items") || [],
               collected_at: collected_at,
@@ -42,8 +43,6 @@ module Puma
             )
             max_items = budget.max_requests_for_worker items, overflow_fields: table.overflow_field_count
             request_lines = table.render max_items: max_items
-            registry = worker.dig("requests", "meta") || {}
-            top_lines << registry_line(registry)
 
             content_width = budget.metric_content_width(budget.worker_box_cols)
             rendered_top = top_lines.flat_map do |line|
@@ -57,6 +56,7 @@ module Puma
 
           def render(worker, budget, process_by_pid:, collected_at:, interval:, mode:, scroll:)
             puma = worker["puma"] || {}
+            single = worker["single"] || mode == "single"
             sync = SyncFreshness.evaluate(
               synced_at: worker["synced_at"],
               collected_at: collected_at,
@@ -72,33 +72,47 @@ module Puma
               top_lines: spec.top_lines,
               bottom_lines: spec.bottom_lines,
               badge: spec.badge,
-              border_level: worker_border_level(puma, sync),
+              border_level: worker_border_level(puma, sync, single: single),
               colors: @colors
             )
           end
 
           private
 
-          def worker_border_level(puma, sync)
+          def box_title(worker, sync, single:)
+            if single
+              pid = worker["pid"]
+              pid_label = pid ? "pid #{pid} ─ " : ""
+              "SERVER ─ #{pid_label}live read"
+            else
+              "WORKER #{worker['index']} ─ pid #{worker['pid']} ─ #{sync.title_fragment}"
+            end
+          end
+
+          def worker_border_level(puma, sync, single:)
             return :crit if puma["backlog"].to_i.positive?
+            return :ok if single
 
             sync.badge
           end
 
-          def worker_title_badge(puma, sync)
+          def worker_title_badge(puma, sync, single:)
             return "[CRIT] backlog #{puma['backlog']}" if puma["backlog"].to_i.positive?
+            return nil if single || sync.badge == :ok
 
-            sync.badge == :ok ? nil : sync.badge.to_s.upcase
+            sync.badge.to_s.upcase
           end
 
-          def worker_metrics(puma, sample, max, mem_total, sync, worker, _budget)
+          def worker_metrics(puma, sample, max, mem_total, sync, worker, single:)
             lines = []
-            lines << LabelLine.new(
-              label: "synced_at",
-              value: Format.rel_time(worker["synced_at"]),
-              badge: sync.badge,
-              colors: @colors
-            )
+            unless single
+              lines << LabelLine.new(
+                label: "checkin",
+                value: Format.rel_time(worker["synced_at"]),
+                badge: sync.badge,
+                colors: @colors
+              )
+            end
             lines << metric_line("backlog", puma["backlog"], max, backlog: true)
             lines << metric_line("running", puma["running"], max)
             lines << metric_line("pool_capacity", puma["pool_capacity"], max)
@@ -139,11 +153,6 @@ module Puma
               colors: @colors,
               ratio: ratio, bar_renderer: @bar
             )
-          end
-
-          def registry_line(registry)
-            "registry #{registry['count']}/#{registry['request_limit']} #{registry['limit_policy']} " \
-              "#{registry['truncated'] ? 'truncated' : 'no'} dropped #{registry['dropped_count']}"
           end
         end
       end

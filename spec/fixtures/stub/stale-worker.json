@@ -1,45 +1,70 @@
 {
-  "schema_version": 1,
-  "meta": {
-    "collected_at": "2026-06-12T14:32:01Z",
-    "gem_version": "0.6.0",
-    "puma_version": "8.0.2",
-    "ruby_version": "3.2.2",
-    "mode": "cluster",
-    "worker_check_interval_seconds": 5
-  },
-  "summary": {
-    "workers_total": 2,
-    "workers_reporting": 1,
-    "workers_stale": 1,
-    "requests_in_flight": 1,
-    "requests_dropped_total": 0,
-    "requests_truncated": false,
-    "backlog_total": 0,
-    "busy_threads_total": 1,
-    "max_threads_total": 10,
-    "pool_capacity_total": 9
-  },
-  "workers": [
+  "started_at": "2026-06-12T14:30:00Z",
+  "workers": 2,
+  "phase": 0,
+  "booted_workers": 2,
+  "old_workers": 0,
+  "collected_at": "2026-06-12T14:32:01Z",
+  "workers_total": 2,
+  "workers_reporting": 1,
+  "workers_stale": 1,
+  "requests_in_flight": 1,
+  "backlog_total": 0,
+  "busy_threads_total": 1,
+  "max_threads_total": 10,
+  "pool_capacity_total": 9,
+  "worker_status": [
     {
       "index": 0,
       "pid": 49001,
-      "synced_at": "2026-06-12T14:31:50Z",
-      "puma": { "backlog": 0, "running": 1, "pool_capacity": 4, "busy_threads": 1, "max_threads": 5 },
-      "requests": {
-        "meta": { "count": 1, "request_limit": 100, "limit_policy": "keep_longest", "truncated": false, "dropped_count": 0 },
-        "items": [{ "id": "x1", "started_at": "2026-06-12T14:31:00Z", "method": "GET", "path_info": "/ok", "remote_ip": "127.0.0.1" }]
-      }
+      "phase": 0,
+      "booted": true,
+      "started_at": "2026-06-12T14:28:00Z",
+      "last_enhanced_checkin": "2026-06-12T14:31:50Z",
+      "last_enhanced_status": {
+        "backlog": 0,
+        "running": 1,
+        "pool_capacity": 4,
+        "busy_threads": 1,
+        "max_threads": 5
+      },
+      "requests": [
+        {
+          "id": "x1",
+          "started_at": "2026-06-12T14:31:00Z",
+          "method": "GET",
+          "path_info": "/ok",
+          "remote_ip": "127.0.0.1"
+        }
+      ]
     },
     {
       "index": 1,
       "pid": 49002,
-      "synced_at": "2026-06-12T14:30:00Z",
-      "puma": { "backlog": 0, "running": 0, "pool_capacity": 5, "busy_threads": 0, "max_threads": 5 },
-      "requests": {
-        "meta": { "count": 0, "request_limit": 100, "limit_policy": "keep_longest", "truncated": false, "dropped_count": 0 },
-        "items": []
-      }
+      "phase": 0,
+      "booted": true,
+      "started_at": "2026-06-12T14:28:05Z",
+      "last_enhanced_checkin": "2026-06-12T14:30:00Z",
+      "last_enhanced_status": {
+        "backlog": 0,
+        "running": 0,
+        "pool_capacity": 5,
+        "busy_threads": 0,
+        "max_threads": 5
+      },
+      "requests": []
     }
-  ]
+  ],
+  "versions": {
+    "puma": "8.0.2",
+    "puma-enhanced-stats": "1.0.0",
+    "ruby": {
+      "engine": "ruby",
+      "version": "3.2.2",
+      "patchlevel": 0
+    }
+  },
+  "_cli": {
+    "worker_check_interval_seconds": 5
+  }
 }

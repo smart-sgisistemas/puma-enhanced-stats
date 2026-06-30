@@ -13,7 +13,7 @@ parser = OptionParser.new do |opts|
   opts.on("-T", "--token TOKEN", "Auth token") { |v| options[:token] = v }
   opts.on("--workers N", Integer, "Worker count") { |v| options[:workers] = v }
   opts.on("--stale N", Integer, "Stale worker count") { |v| options[:stale] = v }
-  opts.on("--scenario NAME", "mixed, stale, truncated") { |v| options[:scenario] = v }
+  opts.on("--scenario NAME", "mixed, stale, truncated, single") { |v| options[:scenario] = v }
 end
 parser.parse!
 

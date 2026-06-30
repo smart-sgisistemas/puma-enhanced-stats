@@ -19,8 +19,8 @@ module Puma
               )
               sample = process_by_pid[worker["pid"]]
               in_flight = worker.dig("requests", "items")&.size.to_i
-              limit = worker.dig("requests", "meta", "request_limit").to_i
-              inflight_ratio = limit.positive? ? in_flight.to_f / limit : 0.0
+              max_threads = puma["max_threads"].to_i
+              inflight_ratio = max_threads.positive? ? in_flight.to_f / max_threads : 0.0
               backlog = puma["backlog"].to_i
 
               [

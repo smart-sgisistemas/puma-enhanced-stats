@@ -12,7 +12,10 @@ module Puma
         # CLI flags  -S, -C, -T, -F override after config/state resolution.
         class ControlDiscovery
           # Resolved connection settings.
-          Entry = Struct.new(:state_path, :control_url, :token, :master_pid, keyword_init: true)
+          Entry = Struct.new(
+            :state_path, :control_url, :token, :master_pid, :worker_check_interval,
+            keyword_init: true
+          )
 
           # @param env [Hash] environment variables  defaults to +ENV+
           # @param overrides [Hash{Symbol=>Object}] CLI connection overrides
@@ -45,7 +48,13 @@ module Puma
             token = @overrides[:token] if @overrides.key?(:token)
             master_pid = StateFile.load(state_path)&.master_pid if state_path && master_pid.nil?
 
-            Entry.new(state_path: state_path, control_url: control_url, token: token, master_pid: master_pid)
+            Entry.new(
+              state_path: state_path,
+              control_url: control_url,
+              token: token,
+              master_pid: master_pid,
+              worker_check_interval: config_options&.[](:worker_check_interval)
+            )
           end
 
           private
